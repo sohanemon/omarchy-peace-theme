@@ -131,7 +131,7 @@ pango_render() { # $1=text $2=pango-markup
 }
 
 render_ayah() {
-  pango_render arabic "<span font_desc='Amiri 76' foreground='$ACCENT'>${ARABIC}</span>" 2100
+  pango_render arabic "<span font_desc='Scheherazade New 76' foreground='$ACCENT'>${ARABIC}</span>" 2100
   pango_render english "<span font_desc='DejaVu Serif 38' foreground='$FOREGROUND'>${ENGLISH}</span>" 1900
   pango_render reference "<span font_desc='DejaVu Sans 28' foreground='$REF_COLOR'>${REFERENCE}</span>" 1200
 }
