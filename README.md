@@ -1,0 +1,74 @@
+# Peace Omarchy Theme
+
+![Peace theme preview showing an ayah rendered in Amiri](previews/ayah-1.png)
+![Neovim and Lazygit](previews/nvim.png)
+
+## Backgrounds
+
+Peace rotates the ayah wallpaper periodically: it runs one minute after login, then every three hours and one minute.
+
+The theme also includes these static backgrounds:
+
+| Pattern | Glow | Minimal |
+| --- | --- | --- |
+| ![Dark green geometric pattern background](backgrounds/01-pattern.png) | ![Dark background with a soft gold glow](backgrounds/02-glow.png) | ![Minimal dark background](backgrounds/03-minimal.png) |
+
+## Wallpaper controls
+
+Choose a random ayah, or move to the next or previous ayah from a terminal:
+
+```bash
+peace-wallpaper random
+peace-wallpaper next
+peace-wallpaper prev
+```
+
+To use `Super + Alt + P` and `Super + Alt + N` in Hyprland, add an optional user binding file at `~/.config/hypr/bindings/peace-wallpaper.lua`:
+
+```lua
+o.bind("SUPER + ALT + P", "Previous ayah", "peace-wallpaper prev")
+o.bind("SUPER + ALT + N", "Next ayah", "peace-wallpaper next")
+```
+
+Omarchy loads Lua files from this user bindings directory. It removes Lua files from third-party theme installs for safety, so add these bindings to your own Hyprland config. Run `peace-wallpaper random` once before using next or previous.
+
+## Install
+
+Install the theme and wallpaper rotation on a new Omarchy device with one command:
+
+```bash
+omarchy theme install https://github.com/sohanemon/omarchy-peace-theme.git && bash "$HOME/.config/omarchy/themes/peace/bin/peace-wallpaper-install"
+```
+
+Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. The installer checks the required packages, installs the bundled Amiri font, and enables the wallpaper timer.
+
+To apply the theme again later, run:
+
+```bash
+omarchy theme set peace
+```
+
+## Uninstall
+
+Stop wallpaper rotation and switch to another theme before removing Peace:
+
+```bash
+systemctl --user disable --now peace-wallpaper.timer
+systemctl --user stop peace-wallpaper.service
+omarchy theme set "Tokyo Night"
+```
+
+Remove the wallpaper command, user units, and bundled font, then remove the theme through Omarchy:
+
+```bash
+rm -f "$HOME/.local/bin/peace-wallpaper" \
+  "$HOME/.config/systemd/user/peace-wallpaper.service" \
+  "$HOME/.config/systemd/user/peace-wallpaper.timer" \
+  "$HOME/.local/share/fonts/peace/Amiri-Regular.ttf"
+rmdir "$HOME/.local/share/fonts/peace" 2>/dev/null || true
+fc-cache -f "$HOME/.local/share/fonts"
+systemctl --user daemon-reload
+omarchy theme remove peace
+```
+
+This leaves `~/.config/omarchy/backgrounds/peace/` intact, so personal backgrounds there are preserved.
