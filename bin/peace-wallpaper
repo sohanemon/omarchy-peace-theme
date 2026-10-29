@@ -1,15 +1,88 @@
 #!/usr/bin/env bash
-# Render a random ayah as a 2560x1440 wallpaper and set it as the Omarchy background.
+# Render a random ayah as a wallpaper sized to the display, using the active theme's colors.
 set -euo pipefail
 
-# NOTE: resolve paths from the script's own location so the repo works both as a
-# working copy (~/Code/peace) and as an installed theme (~/.config/omarchy/themes/peace)
-SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-BG_DIR="$(dirname "$SCRIPT_DIR")/backgrounds"
+# NOTE: user wallpapers go in Omarchy's per-theme user dir, which the background
+# switcher and theme rotation both read; the theme repo's backgrounds/ stays pristine
+BG_DIR="$HOME/.config/omarchy/backgrounds/peace"
 KEEP=3
 MAX_LEN=200 # Skip ayahs whose Arabic text is longer than this
 MAX_ATTEMPTS=10
 API="https://api.alquran.cloud/v1/ayah"
+
+# NOTE: read all colors from the active theme's colors.toml via Omarchy state,
+# not a hardcoded path; no custom keys are added to colors.toml
+STATE_DIR="$HOME/.local/state/omarchy/current"
+COLORS_TOML="$STATE_DIR/theme/colors.toml"
+
+if [[ ! -f $COLORS_TOML ]]; then
+  echo "peace-wallpaper: $COLORS_TOML not found, cannot read theme colors" >&2
+  exit 1
+fi
+
+get_color() { # $1=key
+  local key="$1"
+  grep -E "^${key}[[:space:]]*=" "$COLORS_TOML" | head -1 | sed -E 's/^[^=]*= *"([^"]*)".*/\1/'
+}
+
+ACCENT="$(get_color accent)"
+FOREGROUND="$(get_color foreground)"
+BACKGROUND="$(get_color background)"
+LIGHTER_BACKGROUND="$(get_color lighter_background)"
+DARKER_BACKGROUND="$(get_color darker_background)"
+
+if [[ -z $ACCENT || -z $FOREGROUND || -z $BACKGROUND || -z $LIGHTER_BACKGROUND || -z $DARKER_BACKGROUND ]]; then
+  echo "peace-wallpaper: missing color key in $COLORS_TOML" >&2
+  exit 1
+fi
+
+blend_color() { # $1=fg $2=bg $3=ratio(0-1)
+  local fg="$1" bg="$2" ratio="$3"
+  fg="${fg#\#}"; bg="${bg#\#}"
+  local fr fg_g fg_b br bg_g bb r g b
+  fr=$((16#${fg:0:2})); fg_g=$((16#${fg:2:2})); fg_b=$((16#${fg:4:2}))
+  br=$((16#${bg:0:2})); bg_g=$((16#${bg:2:2})); bb=$((16#${bg:4:2}))
+  r=$(awk -v bg=$br -v fg=$fr -v ratio=$ratio 'BEGIN { printf "%d", bg + (fg - bg) * ratio }')
+  g=$(awk -v bg=$bg_g -v fg=$fg_g -v ratio=$ratio 'BEGIN { printf "%d", bg + (fg - bg) * ratio }')
+  b=$(awk -v bg=$bb -v fg=$fg_b -v ratio=$ratio 'BEGIN { printf "%d", bg + (fg - bg) * ratio }')
+  printf '#%02x%02x%02x' "$r" "$g" "$b"
+}
+
+contrast_ratio() { # $1=color1 $2=color2 -> prints WCAG ratio
+  awk -v c1="$1" -v c2="$2" '
+  function linearize(c) { c/=255; return c <= 0.03928 ? c/12.92 : ((c+0.055)/1.055)^2.4 }
+  function hex2dec(h,    i,c,d,n) {
+    n=0; for(i=1;i<=length(h);i++){c=substr(h,i,1); if(c~/[0-9]/)d=c+0; else if(c~/[aA]/)d=10; else if(c~/[bB]/)d=11; else if(c~/[cC]/)d=12; else if(c~/[dD]/)d=13; else if(c~/[eE]/)d=14; else if(c~/[fF]/)d=15; n=n*16+d}
+    return n
+  }
+  function luminance(hex,    r,g,b) {
+    r=hex2dec(substr(hex,1,2)); g=hex2dec(substr(hex,3,2)); b=hex2dec(substr(hex,5,2))
+    return 0.2126*linearize(r) + 0.7152*linearize(g) + 0.0722*linearize(b)
+  }
+  BEGIN {
+    l1=luminance(c1); l2=luminance(c2)
+    if(l1<l2){t=l1;l1=l2;l2=t}
+    printf "%.2f", (l1+0.05)/(l2+0.05)
+  }
+  '
+}
+
+# NOTE: colors.toml has no color8 key, so blend foreground into background for the
+# muted reference text. Start at 25% foreground and raise it until contrast against
+# lighter_background (the gradient's brightest center, where the text sits) is >= 4.5:1
+BLEND=0.25
+REF_COLOR="$(blend_color "$FOREGROUND" "$LIGHTER_BACKGROUND" "$BLEND")"
+RATIO="$(contrast_ratio "$REF_COLOR" "$LIGHTER_BACKGROUND")"
+while awk -v r="$RATIO" 'BEGIN { exit !(r < 4.5) }'; do
+  BLEND=$(awk -v b="$BLEND" 'BEGIN { printf "%.2f", b + 0.05 }')
+  REF_COLOR="$(blend_color "$FOREGROUND" "$LIGHTER_BACKGROUND" "$BLEND")"
+  RATIO="$(contrast_ratio "$REF_COLOR" "$LIGHTER_BACKGROUND")"
+  if awk -v b="$BLEND" 'BEGIN { exit !(b > 0.95) }'; then
+    echo "peace-wallpaper: cannot reach 4.5:1 contrast, using best effort" >&2
+    break
+  fi
+done
+echo "peace-wallpaper: reference color $REF_COLOR contrast $RATIO:1 against $LIGHTER_BACKGROUND"
 
 mkdir -p "$BG_DIR"
 
@@ -53,10 +126,9 @@ pango_render() { # $1=text $2=pango-markup
 }
 
 render_ayah() {
-  pango_render arabic "<span font_desc='Amiri 76' foreground='#d4af37'>${ARABIC}</span>" 2100
-  pango_render english "<span font_desc='DejaVu Serif 38' foreground='#e8e0c8'>${ENGLISH}</span>" 1900
-  # NOTE: #8ba396 is a lightened theme muted (#6f8479) to pass WCAG AA (5.26:1) on the gradient's brightest center
-  pango_render reference "<span font_desc='DejaVu Sans 28' foreground='#8ba396'>${REFERENCE}</span>" 1200
+  pango_render arabic "<span font_desc='Amiri 76' foreground='$ACCENT'>${ARABIC}</span>" 2100
+  pango_render english "<span font_desc='DejaVu Serif 38' foreground='$FOREGROUND'>${ENGLISH}</span>" 1900
+  pango_render reference "<span font_desc='DejaVu Sans 28' foreground='$REF_COLOR'>${REFERENCE}</span>" 1200
 }
 
 escape_pango() {
@@ -66,6 +138,9 @@ escape_pango() {
   ENGLISH="${ENGLISH//&/&amp;}"
   ENGLISH="${ENGLISH//</&lt;}"
   ENGLISH="${ENGLISH//>/&gt;}"
+  REFERENCE="${REFERENCE//&/&amp;}"
+  REFERENCE="${REFERENCE//</&lt;}"
+  REFERENCE="${REFERENCE//>/&gt;}"
 }
 
 escape_pango
@@ -92,7 +167,7 @@ magick -size "2100x${STACK_H}" xc:none \
   "$TMP/stack.png"
 
 # NOTE: colors follow the peace theme (green radial gradient, gold accent)
-magick -size 2560x1440 "radial-gradient:#123027-#050e0c" \
+magick -size 2560x1440 "radial-gradient:${LIGHTER_BACKGROUND}-${DARKER_BACKGROUND}" \
   "$TMP/stack.png" -gravity center -geometry +0-20 -compose over -composite \
   -quality 92 "$OUT"
 
