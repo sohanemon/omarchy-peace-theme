@@ -9,11 +9,56 @@ KEEP=3
 MAX_LEN=200 # Skip ayahs whose Arabic text is longer than this
 MAX_ATTEMPTS=10
 API="https://api.alquran.cloud/v1/ayah"
+AYAH_STATE="$HOME/.local/state/peace-wallpaper/current-ayah"
+ACTION="${1:-random}"
+
+case "$ACTION" in
+  random|next|prev) ;;
+  -h|--help)
+    echo "Usage: peace-wallpaper [random|next|prev]"
+    exit 0
+    ;;
+  *)
+    echo "peace-wallpaper: unknown action '$ACTION' (use random, next, or prev)" >&2
+    exit 2
+    ;;
+esac
+
+if [[ $ACTION == next || $ACTION == prev ]]; then
+  if [[ ! -r $AYAH_STATE ]] || ! [[ $(<"$AYAH_STATE") =~ ^[0-9]+$ ]]; then
+    echo "peace-wallpaper: no current ayah; run 'peace-wallpaper random' first" >&2
+    exit 1
+  fi
+  CURRENT_AYAH="$(<"$AYAH_STATE")"
+  if [[ $ACTION == next ]]; then
+    TARGET_AYAH=$((CURRENT_AYAH % 6236 + 1))
+  else
+    TARGET_AYAH=$(((CURRENT_AYAH + 6234) % 6236 + 1))
+  fi
+fi
 
 RESOLUTION="2560x1440"
 if MONITOR_RESOLUTION="$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(.focused == true)][0] | if .width and .height then "\(.width)x\(.height)" else empty end' 2>/dev/null)" && [[ -n $MONITOR_RESOLUTION ]]; then
   RESOLUTION="$MONITOR_RESOLUTION"
 fi
+SCREEN_WIDTH="${RESOLUTION%x*}"
+SCREEN_HEIGHT="${RESOLUTION#*x}"
+TEXT_WIDTH=$((SCREEN_WIDTH * 84 / 100))
+MAX_STACK_HEIGHT=$((SCREEN_HEIGHT * 76 / 100))
+FONT_SCALE=$((SCREEN_WIDTH * 100 / 2560))
+HEIGHT_SCALE=$((SCREEN_HEIGHT * 100 / 1440))
+if ((HEIGHT_SCALE < FONT_SCALE)); then
+  FONT_SCALE="$HEIGHT_SCALE"
+fi
+if ((FONT_SCALE > 150)); then
+  FONT_SCALE=150
+fi
+AR_SIZE=$((76 * FONT_SCALE / 100))
+EN_SIZE=$((38 * FONT_SCALE / 100))
+REF_SIZE=$((28 * FONT_SCALE / 100))
+MIN_AR_SIZE=$((AR_SIZE * 35 / 100))
+MIN_EN_SIZE=$((EN_SIZE * 35 / 100))
+MIN_REF_SIZE=$((REF_SIZE * 35 / 100))
 
 # NOTE: read all colors from the active theme's colors.toml via Omarchy state,
 # not a hardcoded path; no custom keys are added to colors.toml
@@ -92,18 +137,26 @@ echo "peace-wallpaper: reference color $REF_COLOR contrast $RATIO:1 against $LIG
 mkdir -p "$BG_DIR"
 
 fetch_ayah() {
-  local attempt json arabic english name number
+  local attempt ayah_number json arabic english name number ayah
   for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
     # NOTE: Quran has 6236 ayahs in the standard mushaf numbering
-    json="$(curl -sf --max-time 15 "$API/$((RANDOM % 6236 + 1))/editions/quran-uthmani,en.sahih")" ||
+    if [[ $ACTION == random ]]; then
+      ayah_number=$((RANDOM % 6236 + 1))
+      if [[ -r $AYAH_STATE ]] && [[ $(<"$AYAH_STATE") == "$ayah_number" ]]; then
+        continue
+      fi
+    else
+      ayah_number="$TARGET_AYAH"
+    fi
+    json="$(curl -sf --max-time 15 "$API/$ayah_number/editions/quran-uthmani,en.sahih")" ||
       return 1
     arabic="$(jq -r '.data[0].text' <<<"$json")"
     english="$(jq -r '.data[1].text' <<<"$json")"
     name="$(jq -r '.data[0].surah.englishName' <<<"$json")"
     number="$(jq -r '.data[0].surah.number' <<<"$json")"
-    local ayah="$(jq -r '.data[0].numberInSurah' <<<"$json")"
-    if ((${#arabic} <= MAX_LEN)); then
-      printf '%s\n%s\n%s %s:%s\n' "$arabic" "$english" "$name" "$number" "$ayah"
+    ayah="$(jq -r '.data[0].numberInSurah' <<<"$json")"
+    if [[ $ACTION != random ]] || ((${#arabic} <= MAX_LEN)); then
+      printf '%s\n%s\n%s\n%s %s:%s\n' "$ayah_number" "$arabic" "$english" "$name" "$number" "$ayah"
       return 0
     fi
   done
@@ -116,9 +169,10 @@ RESULT="$(fetch_ayah)" || {
 }
 readarray -t AYAH <<<"$RESULT"
 
-ARABIC="${AYAH[0]}"
-ENGLISH="${AYAH[1]}"
-REFERENCE="${AYAH[2]}"
+AYAH_NUMBER="${AYAH[0]}"
+ARABIC="${AYAH[1]}"
+ENGLISH="${AYAH[2]}"
+REFERENCE="${AYAH[3]}"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="$BG_DIR/peace-$STAMP.png"
@@ -127,13 +181,13 @@ trap 'rm -rf "$TMP"' EXIT
 
 # NOTE: pango handles Arabic shaping/RTL correctly; plain convert does not
 pango_render() { # $1=text $2=pango-markup
-  magick -size "$3" -background none "pango:$2" "$TMP/$1.png"
+  magick -size "$TEXT_WIDTH" -define pango:align=center -background none "pango:$2" "$TMP/$1.png"
 }
 
 render_ayah() {
-  pango_render arabic "<span font_desc='Scheherazade New 76' foreground='$ACCENT'>${ARABIC}</span>" 2100
-  pango_render english "<span font_desc='DejaVu Serif 38' foreground='$FOREGROUND'>${ENGLISH}</span>" 1900
-  pango_render reference "<span font_desc='DejaVu Sans 28' foreground='$REF_COLOR'>${REFERENCE}</span>" 1200
+  pango_render arabic "<span font_desc='Amiri $AR_SIZE' foreground='$ACCENT'>${ARABIC}</span>"
+  pango_render english "<span font_desc='DejaVu Serif $EN_SIZE' foreground='$FOREGROUND'>${ENGLISH}</span>"
+  pango_render reference "<span font_desc='DejaVu Sans $REF_SIZE' foreground='$REF_COLOR'>${REFERENCE}</span>"
 }
 
 escape_pango() {
@@ -149,23 +203,35 @@ escape_pango() {
 }
 
 escape_pango
-render_ayah
+for ((fit_attempt = 0; fit_attempt < 20; fit_attempt++)); do
+  render_ayah
+  magick "$TMP/arabic.png" -trim +repage "$TMP/arabic.png"
+  magick "$TMP/english.png" -trim +repage "$TMP/english.png"
+  magick "$TMP/reference.png" -trim +repage "$TMP/reference.png"
 
-# Vertical stack of the three blocks, centered on the canvas
-# NOTE: pango renders Arabic flush-right and English flush-left; trim so each block can be centered
-magick "$TMP/arabic.png" -trim +repage "$TMP/arabic.png"
-magick "$TMP/english.png" -trim +repage "$TMP/english.png"
-magick "$TMP/reference.png" -trim +repage "$TMP/reference.png"
+  mapfile -t HEIGHTS < <(magick identify -format '%h\n' "$TMP/arabic.png" "$TMP/english.png" "$TMP/reference.png")
+  AR_H="${HEIGHTS[0]}"
+  EN_H="${HEIGHTS[1]}"
+  REF_H="${HEIGHTS[2]}"
+  GAP=$((70 * FONT_SCALE / 100))
+  STACK_H=$((AR_H + EN_H + REF_H + 2 * GAP))
+  if ((STACK_H <= MAX_STACK_HEIGHT)); then
+    break
+  fi
+  if ((AR_SIZE <= MIN_AR_SIZE && EN_SIZE <= MIN_EN_SIZE && REF_SIZE <= MIN_REF_SIZE)); then
+    break
+  fi
+  AR_SIZE=$((AR_SIZE * 9 / 10))
+  EN_SIZE=$((EN_SIZE * 9 / 10))
+  REF_SIZE=$((REF_SIZE * 9 / 10))
+  if ((AR_SIZE < MIN_AR_SIZE)); then AR_SIZE="$MIN_AR_SIZE"; fi
+  if ((EN_SIZE < MIN_EN_SIZE)); then EN_SIZE="$MIN_EN_SIZE"; fi
+  if ((REF_SIZE < MIN_REF_SIZE)); then REF_SIZE="$MIN_REF_SIZE"; fi
+done
 
-mapfile -t HEIGHTS < <(magick identify -format '%h\n' "$TMP/arabic.png" "$TMP/english.png" "$TMP/reference.png")
-AR_H="${HEIGHTS[0]}"
-EN_H="${HEIGHTS[1]}"
-REF_H="${HEIGHTS[2]}"
-GAP=70
-STACK_H=$((AR_H + EN_H + REF_H + 2 * GAP))
 EN_Y=$((AR_H + GAP))
 REF_Y=$((EN_Y + EN_H + GAP))
-magick -size "2100x${STACK_H}" xc:none \
+magick -size "${TEXT_WIDTH}x${STACK_H}" xc:none \
   "$TMP/arabic.png" -gravity north -geometry +0+0 -compose over -composite \
   "$TMP/english.png" -gravity north -geometry +0+"$EN_Y" -compose over -composite \
   "$TMP/reference.png" -gravity north -geometry +0+"$REF_Y" -compose over -composite \
@@ -180,4 +246,6 @@ magick -size "$RESOLUTION" "radial-gradient:${LIGHTER_BACKGROUND}-${DARKER_BACKG
 ls -t "$BG_DIR"/peace-*.png 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
 
 omarchy theme bg set "$OUT"
-echo "peace-wallpaper: set $OUT"
+mkdir -p "$(dirname "$AYAH_STATE")"
+printf '%s\n' "$AYAH_NUMBER" > "$AYAH_STATE"
+echo "peace-wallpaper: ayah $AYAH_NUMBER ($REFERENCE), set $OUT"

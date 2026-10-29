@@ -49,7 +49,8 @@ if ((${#font_warnings[@]})); then
 fi
 
 mkdir -p "$UNIT_DIR" "$HOME/.local/bin" "$HOME/.local/share/fonts/peace"
-install -m 644 "$THEME_DIR/fonts/ScheherazadeNew-Regular.ttf" "$HOME/.local/share/fonts/peace/ScheherazadeNew-Regular.ttf"
+rm -f "$HOME/.local/share/fonts/peace/ScheherazadeNew-Regular.ttf"
+install -m 644 "$THEME_DIR/fonts/Amiri-Regular.ttf" "$HOME/.local/share/fonts/peace/Amiri-Regular.ttf"
 fc-cache -f "$HOME/.local/share/fonts/peace"
 
 ln -sf "$THEME_DIR/bin/peace-wallpaper" "$HOME/.local/bin/peace-wallpaper"
