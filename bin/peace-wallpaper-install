@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Install the peace-wallpaper systemd user units. Safe to run from a working
+# copy (~/Code/peace) or an installed theme (~/.config/omarchy/themes/peace).
+set -euo pipefail
+
+THEME_DIR="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
+UNIT_DIR="$HOME/.config/systemd/user"
+
+mkdir -p "$UNIT_DIR" "$HOME/.local/bin"
+
+ln -sf "$THEME_DIR/bin/peace-wallpaper" "$HOME/.local/bin/peace-wallpaper"
+ln -sf "$THEME_DIR/systemd/peace-wallpaper.service" "$UNIT_DIR/peace-wallpaper.service"
+ln -sf "$THEME_DIR/systemd/peace-wallpaper.timer" "$UNIT_DIR/peace-wallpaper.timer"
+
+systemctl --user daemon-reload
+systemctl --user enable --now peace-wallpaper.timer
+
+echo "peace-wallpaper timer installed. Check with: systemctl --user list-timers"

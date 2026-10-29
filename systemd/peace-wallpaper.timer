@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh the ayah wallpaper every 3 hours 1 minute after login
+
+[Timer]
+# First run shortly after login, then every 3h1m
+OnStartupSec=1min
+OnUnitActiveSec=3h1min
+# NOTE: catch up on a missed run if the machine was asleep at the scheduled time
+Persistent=true
+
+[Install]
+WantedBy=timers.target

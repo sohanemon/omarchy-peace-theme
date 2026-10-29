@@ -2,7 +2,10 @@
 # Render a random ayah as a 2560x1440 wallpaper and set it as the Omarchy background.
 set -euo pipefail
 
-BG_DIR="$HOME/Code/peace/backgrounds"
+# NOTE: resolve paths from the script's own location so the repo works both as a
+# working copy (~/Code/peace) and as an installed theme (~/.config/omarchy/themes/peace)
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+BG_DIR="$(dirname "$SCRIPT_DIR")/backgrounds"
 KEEP=3
 MAX_LEN=200 # Skip ayahs whose Arabic text is longer than this
 MAX_ATTEMPTS=10
@@ -52,7 +55,8 @@ pango_render() { # $1=text $2=pango-markup
 render_ayah() {
   pango_render arabic "<span font_desc='Amiri 76' foreground='#d4af37'>${ARABIC}</span>" 2100
   pango_render english "<span font_desc='DejaVu Serif 38' foreground='#e8e0c8'>${ENGLISH}</span>" 1900
-  pango_render reference "<span font_desc='DejaVu Sans 28' foreground='#6f8479'>${REFERENCE}</span>" 1200
+  # NOTE: #8ba396 is a lightened theme muted (#6f8479) to pass WCAG AA (5.26:1) on the gradient's brightest center
+  pango_render reference "<span font_desc='DejaVu Sans 28' foreground='#8ba396'>${REFERENCE}</span>" 1200
 }
 
 escape_pango() {
