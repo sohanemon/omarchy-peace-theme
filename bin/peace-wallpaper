@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Render a random ayah as a 2560x1440 wallpaper and set it as the Omarchy background.
+set -euo pipefail
+
+BG_DIR="$HOME/Code/peace/backgrounds"
+KEEP=3
+MAX_LEN=200 # Skip ayahs whose Arabic text is longer than this
+MAX_ATTEMPTS=10
+API="https://api.alquran.cloud/v1/ayah"
+
+mkdir -p "$BG_DIR"
+
+fetch_ayah() {
+  local attempt json arabic english name number
+  for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
+    # NOTE: Quran has 6236 ayahs in the standard mushaf numbering
+    json="$(curl -sf --max-time 15 "$API/$((RANDOM % 6236 + 1))/editions/quran-uthmani,en.sahih")" ||
+      return 1
+    arabic="$(jq -r '.data[0].text' <<<"$json")"
+    english="$(jq -r '.data[1].text' <<<"$json")"
+    name="$(jq -r '.data[0].surah.englishName' <<<"$json")"
+    number="$(jq -r '.data[0].surah.number' <<<"$json")"
+    local ayah="$(jq -r '.data[0].numberInSurah' <<<"$json")"
+    if ((${#arabic} <= MAX_LEN)); then
+      printf '%s\n%s\n%s %s:%s\n' "$arabic" "$english" "$name" "$number" "$ayah"
+      return 0
+    fi
+  done
+  return 1
+}
+
+RESULT="$(fetch_ayah)" || {
+  echo "peace-wallpaper: fetch failed, keeping current wallpaper" >&2
+  exit 1
+}
+readarray -t AYAH <<<"$RESULT"
+
+ARABIC="${AYAH[0]}"
+ENGLISH="${AYAH[1]}"
+REFERENCE="${AYAH[2]}"
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+OUT="$BG_DIR/peace-$STAMP.png"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+# NOTE: pango handles Arabic shaping/RTL correctly; plain convert does not
+pango_render() { # $1=text $2=pango-markup
+  magick -size "$3" -background none "pango:$2" "$TMP/$1.png"
+}
+
+render_ayah() {
+  pango_render arabic "<span font_desc='Amiri 76' foreground='#d4af37'>${ARABIC}</span>" 2100
+  pango_render english "<span font_desc='DejaVu Serif 38' foreground='#e8e0c8'>${ENGLISH}</span>" 1900
+  pango_render reference "<span font_desc='DejaVu Sans 28' foreground='#6f8479'>${REFERENCE}</span>" 1200
+}
+
+escape_pango() {
+  ARABIC="${ARABIC//&/&amp;}"
+  ARABIC="${ARABIC//</&lt;}"
+  ARABIC="${ARABIC//>/&gt;}"
+  ENGLISH="${ENGLISH//&/&amp;}"
+  ENGLISH="${ENGLISH//</&lt;}"
+  ENGLISH="${ENGLISH//>/&gt;}"
+}
+
+escape_pango
+render_ayah
+
+# Vertical stack of the three blocks, centered on the canvas
+# NOTE: pango renders Arabic flush-right and English flush-left; trim so each block can be centered
+magick "$TMP/arabic.png" -trim +repage "$TMP/arabic.png"
+magick "$TMP/english.png" -trim +repage "$TMP/english.png"
+magick "$TMP/reference.png" -trim +repage "$TMP/reference.png"
+
+mapfile -t HEIGHTS < <(magick identify -format '%h\n' "$TMP/arabic.png" "$TMP/english.png" "$TMP/reference.png")
+AR_H="${HEIGHTS[0]}"
+EN_H="${HEIGHTS[1]}"
+REF_H="${HEIGHTS[2]}"
+GAP=70
+STACK_H=$((AR_H + EN_H + REF_H + 2 * GAP))
+EN_Y=$((AR_H + GAP))
+REF_Y=$((EN_Y + EN_H + GAP))
+magick -size "2100x${STACK_H}" xc:none \
+  "$TMP/arabic.png" -gravity north -geometry +0+0 -compose over -composite \
+  "$TMP/english.png" -gravity north -geometry +0+"$EN_Y" -compose over -composite \
+  "$TMP/reference.png" -gravity north -geometry +0+"$REF_Y" -compose over -composite \
+  "$TMP/stack.png"
+
+# NOTE: colors follow the peace theme (green radial gradient, gold accent)
+magick -size 2560x1440 "radial-gradient:#123027-#050e0c" \
+  "$TMP/stack.png" -gravity center -geometry +0-20 -compose over -composite \
+  -quality 92 "$OUT"
+
+# Keep only the newest $KEEP wallpapers
+ls -t "$BG_DIR"/peace-*.png 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
+
+omarchy theme bg set "$OUT"
+echo "peace-wallpaper: set $OUT"
