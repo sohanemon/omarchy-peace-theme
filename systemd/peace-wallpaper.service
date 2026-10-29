@@ -3,6 +3,5 @@ Description=Render a random ayah wallpaper (peace theme)
 
 [Service]
 Type=oneshot
-# NOTE: PATH covers mise shims (magick) and Omarchy's bin dir for any user
-Environment="PATH=%h/.local/share/mise/shims:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStart=%h/.local/bin/peace-wallpaper

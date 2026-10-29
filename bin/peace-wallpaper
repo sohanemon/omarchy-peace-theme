@@ -10,6 +10,11 @@ MAX_LEN=200 # Skip ayahs whose Arabic text is longer than this
 MAX_ATTEMPTS=10
 API="https://api.alquran.cloud/v1/ayah"
 
+RESOLUTION="2560x1440"
+if MONITOR_RESOLUTION="$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(.focused == true)][0] | if .width and .height then "\(.width)x\(.height)" else empty end' 2>/dev/null)" && [[ -n $MONITOR_RESOLUTION ]]; then
+  RESOLUTION="$MONITOR_RESOLUTION"
+fi
+
 # NOTE: read all colors from the active theme's colors.toml via Omarchy state,
 # not a hardcoded path; no custom keys are added to colors.toml
 STATE_DIR="$HOME/.local/state/omarchy/current"
@@ -167,7 +172,7 @@ magick -size "2100x${STACK_H}" xc:none \
   "$TMP/stack.png"
 
 # NOTE: colors follow the peace theme (green radial gradient, gold accent)
-magick -size 2560x1440 "radial-gradient:${LIGHTER_BACKGROUND}-${DARKER_BACKGROUND}" \
+magick -size "$RESOLUTION" "radial-gradient:${LIGHTER_BACKGROUND}-${DARKER_BACKGROUND}" \
   "$TMP/stack.png" -gravity center -geometry +0-20 -compose over -composite \
   -quality 92 "$OUT"
 
