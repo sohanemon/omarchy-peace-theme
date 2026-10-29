@@ -6,34 +6,132 @@ set -euo pipefail
 # switcher and theme rotation both read; the theme repo's backgrounds/ stays pristine
 BG_DIR="$HOME/.config/omarchy/backgrounds/peace"
 KEEP=3
-MAX_LEN=200 # Skip ayahs whose Arabic text is longer than this
 MAX_ATTEMPTS=10
 API="https://api.alquran.cloud/v1/ayah"
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+THEME_DIR="$(dirname "$SCRIPT_DIR")"
+AYAH_FILE="$THEME_DIR/data/ayahs.txt"
 AYAH_STATE="$HOME/.local/state/peace-wallpaper/current-ayah"
-ACTION="${1:-random}"
+ACTION="random"
+ORIGINAL_ARGS=("$@")
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+POOL="${PEACE_POOL:-all}"
+FORCE=false
+DEBUG=false
+REF_OVERRIDE=""
+OUTPUT_FILE=""
+while (($#)); do
+  case "$1" in
+    --force) FORCE=true; shift ;;
+    --debug) DEBUG=true; shift ;;
+    --pool)
+      if (($# < 2)); then
+        echo "peace-wallpaper: --pool requires all or curated" >&2
+        exit 2
+      fi
+      POOL="$2"
+      shift 2
+      ;;
+    --ref)
+      if (($# < 2)); then
+        echo "peace-wallpaper: --ref requires SURAH:AYAH" >&2
+        exit 2
+      fi
+      REF_OVERRIDE="$2"
+      shift 2
+      ;;
+    --out)
+      if (($# < 2)); then
+        echo "peace-wallpaper: --out requires a file path" >&2
+        exit 2
+      fi
+      OUTPUT_FILE="$2"
+      shift 2
+      ;;
+    random|next|prev) ACTION="$1"; shift ;;
+    -h|--help)
+      echo "Usage: peace-wallpaper [--force] [--debug] [--pool all|curated] [random|next|prev] [--ref SURAH:AYAH] [--out FILE]"
+      exit 0
+      ;;
+    *)
+      echo "peace-wallpaper: unknown option or action '$1'" >&2
+      exit 2
+      ;;
+  esac
+done
 
-case "$ACTION" in
-  random|next|prev) ;;
-  -h|--help)
-    echo "Usage: peace-wallpaper [random|next|prev]"
-    exit 0
-    ;;
-  *)
-    echo "peace-wallpaper: unknown action '$ACTION' (use random, next, or prev)" >&2
+if [[ $POOL != all && $POOL != curated ]]; then
+  echo "peace-wallpaper: invalid pool '$POOL' (use all or curated)" >&2
+  exit 2
+fi
+
+if [[ -n $REF_OVERRIDE ]]; then
+  if ! [[ $REF_OVERRIDE =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
+    echo "peace-wallpaper: invalid reference '$REF_OVERRIDE' (expected SURAH:AYAH)" >&2
     exit 2
-    ;;
-esac
+  fi
+  ACTION="ref"
+fi
 
-if [[ $ACTION == next || $ACTION == prev ]]; then
-  if [[ ! -r $AYAH_STATE ]] || ! [[ $(<"$AYAH_STATE") =~ ^[0-9]+$ ]]; then
+CURATED_AYAHS=()
+if [[ $POOL == curated ]]; then
+  if [[ -r $AYAH_FILE ]]; then
+    mapfile -t CURATED_AYAHS < <(sed '/^[[:space:]]*$/d' "$AYAH_FILE")
+  fi
+  if ((${#CURATED_AYAHS[@]} == 0)); then
+    echo "peace-wallpaper: curated ayah list unavailable or empty; falling back to the all pool" >&2
+    POOL=all
+  else
+    for ayah_ref in "${CURATED_AYAHS[@]}"; do
+      if ! [[ $ayah_ref =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
+        echo "peace-wallpaper: invalid ayah reference '$ayah_ref' in $AYAH_FILE" >&2
+        exit 1
+      fi
+    done
+  fi
+fi
+if [[ -n $REF_OVERRIDE ]]; then
+  TARGET_AYAH="$REF_OVERRIDE"
+fi
+
+if [[ -z $REF_OVERRIDE && ($ACTION == next || $ACTION == prev) ]]; then
+  if [[ ! -r $AYAH_STATE ]]; then
     echo "peace-wallpaper: no current ayah; run 'peace-wallpaper random' first" >&2
     exit 1
   fi
   CURRENT_AYAH="$(<"$AYAH_STATE")"
-  if [[ $ACTION == next ]]; then
-    TARGET_AYAH=$((CURRENT_AYAH % 6236 + 1))
+  if [[ $POOL == all ]]; then
+    if ! [[ $CURRENT_AYAH =~ ^[1-9][0-9]*$ ]] || ((CURRENT_AYAH > 6236)); then
+      echo "peace-wallpaper: state does not match the all pool; run 'peace-wallpaper random' first" >&2
+      exit 1
+    fi
+    if [[ $ACTION == next ]]; then
+      TARGET_AYAH=$((CURRENT_AYAH % 6236 + 1))
+    else
+      TARGET_AYAH=$(((CURRENT_AYAH + 6234) % 6236 + 1))
+    fi
   else
-    TARGET_AYAH=$(((CURRENT_AYAH + 6234) % 6236 + 1))
+    if ! [[ $CURRENT_AYAH =~ ^[1-9][0-9]*:[1-9][0-9]*$ ]]; then
+      echo "peace-wallpaper: state does not match the curated pool; run 'peace-wallpaper random' first" >&2
+      exit 1
+    fi
+    CURRENT_INDEX=-1
+    for index in "${!CURATED_AYAHS[@]}"; do
+      if [[ ${CURATED_AYAHS[$index]} == "$CURRENT_AYAH" ]]; then
+        CURRENT_INDEX="$index"
+        break
+      fi
+    done
+    if ((CURRENT_INDEX < 0)); then
+      echo "peace-wallpaper: current ayah is not in the curated list; run 'peace-wallpaper random' first" >&2
+      exit 1
+    fi
+    if [[ $ACTION == next ]]; then
+      TARGET_INDEX=$(((CURRENT_INDEX + 1) % ${#CURATED_AYAHS[@]}))
+    else
+      TARGET_INDEX=$(((CURRENT_INDEX + ${#CURATED_AYAHS[@]} - 1) % ${#CURATED_AYAHS[@]}))
+    fi
+    TARGET_AYAH="${CURATED_AYAHS[$TARGET_INDEX]}"
   fi
 fi
 
@@ -43,7 +141,11 @@ if MONITOR_RESOLUTION="$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(
 fi
 SCREEN_WIDTH="${RESOLUTION%x*}"
 SCREEN_HEIGHT="${RESOLUTION#*x}"
-TEXT_WIDTH=$((SCREEN_WIDTH * 84 / 100))
+TEXT_WIDTH=$((SCREEN_WIDTH * 75 / 100))
+ARABIC_FONT="Amiri"
+if fc-list : family | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -Fxq 'Amiri Quran'; then
+  ARABIC_FONT="Amiri Quran"
+fi
 MAX_STACK_HEIGHT=$((SCREEN_HEIGHT * 76 / 100))
 FONT_SCALE=$((SCREEN_WIDTH * 100 / 2560))
 HEIGHT_SCALE=$((SCREEN_HEIGHT * 100 / 1440))
@@ -53,12 +155,18 @@ fi
 if ((FONT_SCALE > 150)); then
   FONT_SCALE=150
 fi
-AR_SIZE=$((76 * FONT_SCALE / 100))
-EN_SIZE=$((38 * FONT_SCALE / 100))
 REF_SIZE=$((28 * FONT_SCALE / 100))
-MIN_AR_SIZE=$((AR_SIZE * 35 / 100))
-MIN_EN_SIZE=$((EN_SIZE * 35 / 100))
-MIN_REF_SIZE=$((REF_SIZE * 35 / 100))
+
+scale_font_for_length() {
+  local length="$1" base_size="$2" minimum_size="$3" short_limit="$4" long_limit="$5"
+  if ((length <= short_limit)); then
+    printf '%s\n' "$base_size"
+  elif ((length >= long_limit)); then
+    printf '%s\n' "$minimum_size"
+  else
+    printf '%s\n' "$((base_size - (length - short_limit) * (base_size - minimum_size) / (long_limit - short_limit)))"
+  fi
+}
 
 # NOTE: read all colors from the active theme's colors.toml via Omarchy state,
 # not a hardcoded path; no custom keys are added to colors.toml
@@ -84,6 +192,18 @@ DARKER_BACKGROUND="$(get_color darker_background)"
 if [[ -z $ACCENT || -z $FOREGROUND || -z $BACKGROUND || -z $LIGHTER_BACKGROUND || -z $DARKER_BACKGROUND ]]; then
   echo "peace-wallpaper: missing color key in $COLORS_TOML" >&2
   exit 1
+fi
+
+ACTIVE_THEME="unknown"
+if [[ -r $STATE_DIR/theme.name ]]; then
+  ACTIVE_THEME="$(<"$STATE_DIR/theme.name")"
+fi
+if [[ -n $OUTPUT_FILE && $ACTIVE_THEME != "peace" ]]; then
+  echo "peace-wallpaper: --out requires the active Omarchy theme to be 'peace' (current: '$ACTIVE_THEME')" >&2
+  exit 1
+fi
+if [[ -n $OUTPUT_FILE ]]; then
+  printf 'Active theme: %s\nColors used: background=%s foreground=%s accent=%s\n' "$ACTIVE_THEME" "$BACKGROUND" "$FOREGROUND" "$ACCENT"
 fi
 
 blend_color() { # $1=fg $2=bg $3=ratio(0-1)
@@ -134,31 +254,39 @@ while awk -v r="$RATIO" 'BEGIN { exit !(r < 4.5) }'; do
 done
 echo "peace-wallpaper: reference color $REF_COLOR contrast $RATIO:1 against $LIGHTER_BACKGROUND"
 
-mkdir -p "$BG_DIR"
+if [[ -z $OUTPUT_FILE ]]; then
+  mkdir -p "$BG_DIR"
+fi
 
 fetch_ayah() {
-  local attempt ayah_number json arabic english name number ayah
+  local attempt ayah_ref json arabic english name number ayah absolute_number rejected_ayahs
   for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
-    # NOTE: Quran has 6236 ayahs in the standard mushaf numbering
     if [[ $ACTION == random ]]; then
-      ayah_number=$((RANDOM % 6236 + 1))
-      if [[ -r $AYAH_STATE ]] && [[ $(<"$AYAH_STATE") == "$ayah_number" ]]; then
+      if [[ $POOL == all ]]; then
+        ayah_ref="$(shuf -i 1-6236 -n 1)"
+      else
+        ayah_ref="${CURATED_AYAHS[$((RANDOM % ${#CURATED_AYAHS[@]}))]}"
+      fi
+      rejected_ayahs=" ${PEACE_WALLPAPER_REJECTED_AYAHS:-} "
+      if [[ $rejected_ayahs == *" $ayah_ref "* ]]; then
+        continue
+      fi
+      if [[ $FORCE != true && -r $AYAH_STATE ]] && [[ $(<"$AYAH_STATE") == "$ayah_ref" ]]; then
         continue
       fi
     else
-      ayah_number="$TARGET_AYAH"
+      ayah_ref="$TARGET_AYAH"
     fi
-    json="$(curl -sf --max-time 15 "$API/$ayah_number/editions/quran-uthmani,en.sahih")" ||
+    json="$(curl -sf --max-time 15 "$API/$ayah_ref/editions/quran-uthmani,en.sahih")" ||
       return 1
     arabic="$(jq -r '.data[0].text' <<<"$json")"
     english="$(jq -r '.data[1].text' <<<"$json")"
     name="$(jq -r '.data[0].surah.englishName' <<<"$json")"
     number="$(jq -r '.data[0].surah.number' <<<"$json")"
     ayah="$(jq -r '.data[0].numberInSurah' <<<"$json")"
-    if [[ $ACTION != random ]] || ((${#arabic} <= MAX_LEN)); then
-      printf '%s\n%s\n%s\n%s %s:%s\n' "$ayah_number" "$arabic" "$english" "$name" "$number" "$ayah"
-      return 0
-    fi
+    absolute_number="$(jq -r '.data[0].number' <<<"$json")"
+    printf '%s\n%s\n%s\n%s\n%s %s:%s\n' "$ayah_ref" "$absolute_number" "$arabic" "$english" "$name" "$number" "$ayah"
+    return 0
   done
   return 1
 }
@@ -169,13 +297,58 @@ RESULT="$(fetch_ayah)" || {
 }
 readarray -t AYAH <<<"$RESULT"
 
-AYAH_NUMBER="${AYAH[0]}"
-ARABIC="${AYAH[1]}"
-ENGLISH="${AYAH[2]}"
-REFERENCE="${AYAH[3]}"
+AYAH_REF="${AYAH[0]}"
+ABSOLUTE_AYAH="${AYAH[1]}"
+ARABIC="${AYAH[2]}"
+ENGLISH="${AYAH[3]}"
+REFERENCE="${AYAH[4]}"
+if [[ $POOL == all ]]; then
+  AYAH_STATE_VALUE="$ABSOLUTE_AYAH"
+else
+  AYAH_STATE_VALUE="$AYAH_REF"
+fi
+if [[ $DEBUG == true || -n $OUTPUT_FILE ]]; then
+  if [[ $DEBUG == true ]]; then
+    printf 'Raw Arabic (%s): %s\n' "$AYAH_REF" "$ARABIC"
+    python3 - "$ARABIC" <<'PYDEBUG'
+import sys
+text = sys.argv[1]
+print("Arabic Unicode codepoints:", " ".join(f"U+{ord(char):04X}" for char in text))
+print("U+06DA waqf mark count:", text.count("\u06da"))
+print("U+0670 dagger alif count:", text.count("\u0670"))
+PYDEBUG
+  fi
+  PANGO_FONT="$(fc-match -f '%{family}\n' "$ARABIC_FONT" | head -n 1)"
+  printf 'Arabic font requested: %s\nArabic font resolved by Fontconfig/Pango: %s\n' "$ARABIC_FONT" "$PANGO_FONT"
+fi
+ENGLISH="$(jq -nr --arg text "$ENGLISH" '
+  def strip_odd_edge_quote:
+    explode as $characters
+    | ([$characters[] | select(. == 34 or . == 8220 or . == 8221)] | length) as $quote_count
+    | if ($quote_count % 2) == 1 then
+        if ($characters[0] == 34 or $characters[0] == 8220 or $characters[0] == 8221) then $characters[1:] | implode
+        elif ($characters[-1] == 34 or $characters[-1] == 8220 or $characters[-1] == 8221) then $characters[:-1] | implode
+        else $characters | implode end
+      else $characters | implode end;
+  $text | strip_odd_edge_quote
+')"
+ARABIC_LENGTH="$(jq -nr --arg text "$ARABIC" '$text | length')"
+ENGLISH_LENGTH="$(jq -nr --arg text "$ENGLISH" '$text | length')"
+AR_SIZE="$(scale_font_for_length "$ARABIC_LENGTH" 76 48 100 300)"
+EN_SIZE="$(scale_font_for_length "$ENGLISH_LENGTH" 38 24 160 600)"
+AR_SIZE=$((AR_SIZE * FONT_SCALE / 100))
+EN_SIZE=$((EN_SIZE * FONT_SCALE / 100))
+MIN_AR_SIZE=$((AR_SIZE * 35 / 100))
+MIN_EN_SIZE=$((EN_SIZE * 35 / 100))
+MIN_REF_SIZE=$((REF_SIZE * 35 / 100))
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$BG_DIR/peace-$STAMP.png"
+if [[ -n $OUTPUT_FILE ]]; then
+  OUT="$OUTPUT_FILE"
+  mkdir -p "$(dirname "$OUT")"
+else
+  OUT="$BG_DIR/peace-$STAMP.png"
+fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -185,7 +358,9 @@ pango_render() { # $1=text $2=pango-markup
 }
 
 render_ayah() {
-  pango_render arabic "<span font_desc='Amiri $AR_SIZE' foreground='$ACCENT'>${ARABIC}</span>"
+  pango_render arabic "<span font_desc='$ARABIC_FONT $AR_SIZE' foreground='$ACCENT'>
+${ARABIC}
+</span>"
   pango_render english "<span font_desc='DejaVu Serif $EN_SIZE' foreground='$FOREGROUND'>${ENGLISH}</span>"
   pango_render reference "<span font_desc='DejaVu Sans $REF_SIZE' foreground='$REF_COLOR'>${REFERENCE}</span>"
 }
@@ -203,19 +378,24 @@ escape_pango() {
 }
 
 escape_pango
+FIT_OK=false
 for ((fit_attempt = 0; fit_attempt < 20; fit_attempt++)); do
   render_ayah
   magick "$TMP/arabic.png" -trim +repage "$TMP/arabic.png"
   magick "$TMP/english.png" -trim +repage "$TMP/english.png"
   magick "$TMP/reference.png" -trim +repage "$TMP/reference.png"
 
-  mapfile -t HEIGHTS < <(magick identify -format '%h\n' "$TMP/arabic.png" "$TMP/english.png" "$TMP/reference.png")
-  AR_H="${HEIGHTS[0]}"
-  EN_H="${HEIGHTS[1]}"
-  REF_H="${HEIGHTS[2]}"
+  mapfile -t DIMENSIONS < <(magick identify -format '%w\n%h\n' "$TMP/arabic.png" "$TMP/english.png" "$TMP/reference.png")
+  AR_W="${DIMENSIONS[0]}"
+  AR_H="${DIMENSIONS[1]}"
+  EN_W="${DIMENSIONS[2]}"
+  EN_H="${DIMENSIONS[3]}"
+  REF_W="${DIMENSIONS[4]}"
+  REF_H="${DIMENSIONS[5]}"
   GAP=$((70 * FONT_SCALE / 100))
   STACK_H=$((AR_H + EN_H + REF_H + 2 * GAP))
-  if ((STACK_H <= MAX_STACK_HEIGHT)); then
+  if ((STACK_H <= MAX_STACK_HEIGHT && AR_W <= TEXT_WIDTH && EN_W <= TEXT_WIDTH && REF_W <= TEXT_WIDTH)); then
+    FIT_OK=true
     break
   fi
   if ((AR_SIZE <= MIN_AR_SIZE && EN_SIZE <= MIN_EN_SIZE && REF_SIZE <= MIN_REF_SIZE)); then
@@ -228,6 +408,23 @@ for ((fit_attempt = 0; fit_attempt < 20; fit_attempt++)); do
   if ((EN_SIZE < MIN_EN_SIZE)); then EN_SIZE="$MIN_EN_SIZE"; fi
   if ((REF_SIZE < MIN_REF_SIZE)); then REF_SIZE="$MIN_REF_SIZE"; fi
 done
+if [[ $FIT_OK != true ]]; then
+  if [[ $ACTION == random ]]; then
+    fit_retry_count="${PEACE_WALLPAPER_FIT_RETRY:-0}"
+    if ((fit_retry_count < 4)); then
+      rejected_ayahs="${PEACE_WALLPAPER_REJECTED_AYAHS:-} ${AYAH_REF}"
+      export PEACE_WALLPAPER_FIT_RETRY=$((fit_retry_count + 1))
+      export PEACE_WALLPAPER_REJECTED_AYAHS="$rejected_ayahs"
+      echo "peace-wallpaper: ayah $AYAH_REF does not fit; retrying with another random ayah ($((fit_retry_count + 2))/5)" >&2
+      "$SCRIPT_PATH" "${ORIGINAL_ARGS[@]}"
+      exit $?
+    fi
+    echo "peace-wallpaper: no random ayah fit after 5 candidates; refusing to write a clipped wallpaper" >&2
+  else
+    echo "peace-wallpaper: ayah text does not fit the viewport after font scaling; refusing to write a clipped wallpaper" >&2
+  fi
+  exit 1
+fi
 
 EN_Y=$((AR_H + GAP))
 REF_Y=$((EN_Y + EN_H + GAP))
@@ -242,10 +439,14 @@ magick -size "$RESOLUTION" "radial-gradient:${LIGHTER_BACKGROUND}-${DARKER_BACKG
   "$TMP/stack.png" -gravity center -geometry +0-20 -compose over -composite \
   -quality 92 "$OUT"
 
-# Keep only the newest $KEEP wallpapers
-ls -t "$BG_DIR"/peace-*.png 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
+if [[ -n $OUTPUT_FILE ]]; then
+  printf 'peace-wallpaper: rendered %s to %s (Arabic %spt, English %spt)\n' "$AYAH_REF" "$OUT" "$AR_SIZE" "$EN_SIZE"
+else
+  # Keep only the newest $KEEP wallpapers
+  ls -t "$BG_DIR"/peace-*.png 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
 
-omarchy theme bg set "$OUT"
-mkdir -p "$(dirname "$AYAH_STATE")"
-printf '%s\n' "$AYAH_NUMBER" > "$AYAH_STATE"
-echo "peace-wallpaper: ayah $AYAH_NUMBER ($REFERENCE), set $OUT"
+  omarchy theme bg set "$OUT"
+  mkdir -p "$(dirname "$AYAH_STATE")"
+  printf '%s\n' "$AYAH_STATE_VALUE" > "$AYAH_STATE"
+  echo "peace-wallpaper: ayah $AYAH_REF ($REFERENCE), set $OUT"
+fi
