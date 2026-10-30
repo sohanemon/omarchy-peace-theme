@@ -235,12 +235,16 @@ REF_COLOR="$(get_color muted)"
 AR_CONTRAST="$(contrast_ratio "$ACCENT" "$BACKGROUND")"
 EN_CONTRAST="$(contrast_ratio "$FOREGROUND" "$BACKGROUND")"
 REF_CONTRAST="$(contrast_ratio "$REF_COLOR" "$BACKGROUND")"
-printf 'peace-wallpaper: text contrast against card %s: Arabic %s:1, English %s:1, reference %s:1\n' \
+printf 'peace-wallpaper: text contrast against theme background %s: Arabic %s:1, English %s:1, reference %s:1\n' \
   "$BACKGROUND" "$AR_CONTRAST" "$EN_CONTRAST" "$REF_CONTRAST"
 for text_contrast in "$AR_CONTRAST" "$EN_CONTRAST" "$REF_CONTRAST"; do
   if awk -v ratio="$text_contrast" 'BEGIN { exit !(ratio < 4.5) }'; then
-    echo "peace-wallpaper: theme text colors do not meet 4.5:1 contrast against the card; refusing to render" >&2
-    exit 1
+    if [[ -n $OUTPUT_FILE ]]; then
+      echo "peace-wallpaper: theme text colors do not meet 4.5:1 contrast; refusing to render" >&2
+      exit 1
+    fi
+    echo "peace-wallpaper: warning: theme text colors do not meet 4.5:1 contrast" >&2
+    break
   fi
 done
 
@@ -437,15 +441,20 @@ magick -size "${TEXT_WIDTH}x${STACK_H}" xc:none \
   "$TMP/reference.png" -gravity north -geometry +0+"$REF_Y" -compose over -composite \
   "$TMP/stack.png"
 
-# NOTE: An opaque theme-colored card keeps text contrast independent of the selected image.
-PANEL_W=$((SCREEN_WIDTH * 85 / 100))
-PANEL_PADDING=$((SCREEN_HEIGHT * 2 / 100))
-PANEL_H=$((STACK_H + 2 * PANEL_PADDING))
-magick -size "${PANEL_W}x${PANEL_H}" xc:none -fill "$BACKGROUND" \
-  -draw "roundrectangle 0,0 $((PANEL_W - 1)),$((PANEL_H - 1)) $PANEL_PADDING,$PANEL_PADDING" \
-  "$TMP/panel.png"
-magick "$TMP/backdrop.png" "$TMP/panel.png" -gravity center -compose over -composite \
-  "$TMP/stack.png" -gravity center -geometry +0-20 -compose over -composite \
+# NOTE: Layered shadows preserve readability without covering the bundled artwork.
+DIM=22   # percent black over the backdrop; set 0 to disable
+SH_WIDE=$((18 * FONT_SCALE / 100)); ((SH_WIDE < 4)) && SH_WIDE=4
+SH_TIGHT=$((3 * FONT_SCALE / 100)); ((SH_TIGHT < 1)) && SH_TIGHT=1
+SH_PAD=$((SH_WIDE * 4))
+magick "$TMP/stack.png" -bordercolor none -border "$SH_PAD" "$TMP/pad.png"
+magick "$TMP/pad.png" -alpha extract -blur "0x$SH_WIDE" -level 0,45% -background black -alpha shape "$TMP/shadow-wide.png"
+magick "$TMP/pad.png" -alpha extract -blur "0x$SH_TIGHT" -level 0,35% -background black -alpha shape "$TMP/shadow-tight.png"
+magick "$TMP/shadow-wide.png" "$TMP/shadow-tight.png" -compose over -composite \
+  "$TMP/pad.png" -compose over -composite "$TMP/text.png"
+if ((DIM > 0)); then
+  magick "$TMP/backdrop.png" -fill black -colorize "${DIM}%" "$TMP/backdrop.png"
+fi
+magick "$TMP/backdrop.png" "$TMP/text.png" -gravity center -compose over -composite \
   -quality 92 "$OUT"
 
 if [[ -n $OUTPUT_FILE ]]; then
