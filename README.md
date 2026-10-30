@@ -1,7 +1,9 @@
 # Peace Omarchy Theme
 
-![Peace theme preview showing an ayah rendered in Amiri](previews/ayah-1.png)
-![Neovim and Lazygit](previews/nvim.png)
+![Peace theme preview showing an ayah rendered in Amiri](assets/ayah-1.png)
+![Neovim](assets/nvim.png)
+
+![Lazygit](assets/lazygit.png)
 
 ## Backgrounds
 

@@ -155,7 +155,7 @@ fi
 if ((FONT_SCALE > 150)); then
   FONT_SCALE=150
 fi
-REF_SIZE=$((28 * FONT_SCALE / 100))
+REF_SIZE=$((18 * FONT_SCALE / 100))
 
 scale_font_for_length() {
   local length="$1" base_size="$2" minimum_size="$3" short_limit="$4" long_limit="$5"
@@ -449,8 +449,8 @@ SH_PAD=$((SH_WIDE * 4))
 magick "$TMP/stack.png" -bordercolor none -border "$SH_PAD" "$TMP/pad.png"
 magick "$TMP/pad.png" -alpha extract -blur "0x$SH_WIDE" -level 0,45% -background black -alpha shape "$TMP/shadow-wide.png"
 magick "$TMP/pad.png" -alpha extract -blur "0x$SH_TIGHT" -level 0,35% -background black -alpha shape "$TMP/shadow-tight.png"
-magick "$TMP/shadow-wide.png" "$TMP/shadow-tight.png" -compose over -composite \
-  "$TMP/pad.png" -compose over -composite "$TMP/text.png"
+magick "$TMP/pad.png" "$TMP/shadow-tight.png" -compose DstOver -composite \
+  "$TMP/shadow-wide.png" -compose DstOver -composite "$TMP/text.png"
 if ((DIM > 0)); then
   magick "$TMP/backdrop.png" -fill black -colorize "${DIM}%" "$TMP/backdrop.png"
 fi
@@ -458,7 +458,8 @@ magick "$TMP/backdrop.png" "$TMP/text.png" -gravity center -compose over -compos
   -quality 92 "$OUT"
 
 if [[ -n $OUTPUT_FILE ]]; then
-  printf 'peace-wallpaper: rendered %s to %s (Arabic %spt, English %spt)\n' "$AYAH_REF" "$OUT" "$AR_SIZE" "$EN_SIZE"
+  printf 'peace-wallpaper: rendered %s to %s (Arabic %spt, English %spt, reference %spt)\n' \
+    "$AYAH_REF" "$OUT" "$AR_SIZE" "$EN_SIZE" "$REF_SIZE"
 else
   # Keep only the newest $KEEP wallpapers
   ls -t "$BG_DIR"/peace-*.png 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
