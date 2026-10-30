@@ -210,18 +210,6 @@ if [[ -n $OUTPUT_FILE ]]; then
   printf 'Active theme: %s\nColors used: background=%s foreground=%s accent=%s\n' "$ACTIVE_THEME" "$BACKGROUND" "$FOREGROUND" "$ACCENT"
 fi
 
-blend_color() { # $1=fg $2=bg $3=ratio(0-1)
-  local fg="$1" bg="$2" ratio="$3"
-  fg="${fg#\#}"; bg="${bg#\#}"
-  local fr fg_g fg_b br bg_g bb r g b
-  fr=$((16#${fg:0:2})); fg_g=$((16#${fg:2:2})); fg_b=$((16#${fg:4:2}))
-  br=$((16#${bg:0:2})); bg_g=$((16#${bg:2:2})); bb=$((16#${bg:4:2}))
-  r=$(awk -v bg=$br -v fg=$fr -v ratio=$ratio 'BEGIN { printf "%d", bg + (fg - bg) * ratio }')
-  g=$(awk -v bg=$bg_g -v fg=$fg_g -v ratio=$ratio 'BEGIN { printf "%d", bg + (fg - bg) * ratio }')
-  b=$(awk -v bg=$bb -v fg=$fg_b -v ratio=$ratio 'BEGIN { printf "%d", bg + (fg - bg) * ratio }')
-  printf '#%02x%02x%02x' "$r" "$g" "$b"
-}
-
 contrast_ratio() { # $1=color1 $2=color2 -> prints WCAG ratio
   awk -v c1="$1" -v c2="$2" '
   function linearize(c) { c/=255; return c <= 0.03928 ? c/12.92 : ((c+0.055)/1.055)^2.4 }
@@ -234,6 +222,7 @@ contrast_ratio() { # $1=color1 $2=color2 -> prints WCAG ratio
     return 0.2126*linearize(r) + 0.7152*linearize(g) + 0.0722*linearize(b)
   }
   BEGIN {
+    sub(/^#/, "", c1); sub(/^#/, "", c2)
     l1=luminance(c1); l2=luminance(c2)
     if(l1<l2){t=l1;l1=l2;l2=t}
     printf "%.2f", (l1+0.05)/(l2+0.05)
@@ -241,22 +230,19 @@ contrast_ratio() { # $1=color1 $2=color2 -> prints WCAG ratio
   '
 }
 
-# NOTE: colors.toml has no color8 key, so blend foreground into background for the
-# muted reference text. Start at 25% foreground and raise it until contrast against
-# lighter_background (the gradient's brightest center, where the text sits) is >= 4.5:1
-BLEND=0.25
-REF_COLOR="$(blend_color "$FOREGROUND" "$LIGHTER_BACKGROUND" "$BLEND")"
-RATIO="$(contrast_ratio "$REF_COLOR" "$LIGHTER_BACKGROUND")"
-while awk -v r="$RATIO" 'BEGIN { exit !(r < 4.5) }'; do
-  BLEND=$(awk -v b="$BLEND" 'BEGIN { printf "%.2f", b + 0.05 }')
-  REF_COLOR="$(blend_color "$FOREGROUND" "$LIGHTER_BACKGROUND" "$BLEND")"
-  RATIO="$(contrast_ratio "$REF_COLOR" "$LIGHTER_BACKGROUND")"
-  if awk -v b="$BLEND" 'BEGIN { exit !(b > 0.95) }'; then
-    echo "peace-wallpaper: cannot reach 4.5:1 contrast, using best effort" >&2
-    break
+REF_COLOR="$(get_color muted)"
+[[ -n $REF_COLOR ]] || REF_COLOR="$FOREGROUND"
+AR_CONTRAST="$(contrast_ratio "$ACCENT" "$BACKGROUND")"
+EN_CONTRAST="$(contrast_ratio "$FOREGROUND" "$BACKGROUND")"
+REF_CONTRAST="$(contrast_ratio "$REF_COLOR" "$BACKGROUND")"
+printf 'peace-wallpaper: text contrast against card %s: Arabic %s:1, English %s:1, reference %s:1\n' \
+  "$BACKGROUND" "$AR_CONTRAST" "$EN_CONTRAST" "$REF_CONTRAST"
+for text_contrast in "$AR_CONTRAST" "$EN_CONTRAST" "$REF_CONTRAST"; do
+  if awk -v ratio="$text_contrast" 'BEGIN { exit !(ratio < 4.5) }'; then
+    echo "peace-wallpaper: theme text colors do not meet 4.5:1 contrast against the card; refusing to render" >&2
+    exit 1
   fi
 done
-echo "peace-wallpaper: reference color $REF_COLOR contrast $RATIO:1 against $LIGHTER_BACKGROUND"
 
 if [[ -z $OUTPUT_FILE ]]; then
   mkdir -p "$BG_DIR"
@@ -356,6 +342,19 @@ fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+mapfile -t BUNDLED_BACKGROUNDS < <(find "$THEME_DIR/backgrounds" -maxdepth 1 -type f \
+  ! -name 'peace-*' \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) | sort)
+if ((${#BUNDLED_BACKGROUNDS[@]})); then
+  BASE_IMAGE="$(shuf -e "${BUNDLED_BACKGROUNDS[@]}" -n 1)"
+  magick "$BASE_IMAGE" -resize "${SCREEN_WIDTH}x${SCREEN_HEIGHT}^" -gravity center \
+    -extent "$RESOLUTION" "$TMP/backdrop.png"
+  printf 'peace-wallpaper: background image %s\n' "${BASE_IMAGE##*/}"
+else
+  BASE_IMAGE=""
+  magick -size "$RESOLUTION" "radial-gradient:${LIGHTER_BACKGROUND}-${DARKER_BACKGROUND}" "$TMP/backdrop.png"
+  echo "peace-wallpaper: no bundled background images found; using theme gradient" >&2
+fi
+
 # NOTE: pango handles Arabic shaping/RTL correctly; plain convert does not
 pango_render() { # $1=text $2=pango-markup
   magick -size "$TEXT_WIDTH" -define pango:align=center -background none "pango:$2" "$TMP/$1.png"
@@ -438,8 +437,14 @@ magick -size "${TEXT_WIDTH}x${STACK_H}" xc:none \
   "$TMP/reference.png" -gravity north -geometry +0+"$REF_Y" -compose over -composite \
   "$TMP/stack.png"
 
-# NOTE: colors follow the peace theme (green radial gradient, gold accent)
-magick -size "$RESOLUTION" "radial-gradient:${LIGHTER_BACKGROUND}-${DARKER_BACKGROUND}" \
+# NOTE: An opaque theme-colored card keeps text contrast independent of the selected image.
+PANEL_W=$((SCREEN_WIDTH * 85 / 100))
+PANEL_PADDING=$((SCREEN_HEIGHT * 2 / 100))
+PANEL_H=$((STACK_H + 2 * PANEL_PADDING))
+magick -size "${PANEL_W}x${PANEL_H}" xc:none -fill "$BACKGROUND" \
+  -draw "roundrectangle 0,0 $((PANEL_W - 1)),$((PANEL_H - 1)) $PANEL_PADDING,$PANEL_PADDING" \
+  "$TMP/panel.png"
+magick "$TMP/backdrop.png" "$TMP/panel.png" -gravity center -compose over -composite \
   "$TMP/stack.png" -gravity center -geometry +0-20 -compose over -composite \
   -quality 92 "$OUT"
 
