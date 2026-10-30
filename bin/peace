@@ -7,31 +7,31 @@ usage() {
   cat <<'EOF'
 Usage: peace <action> [options]
 
-Actions (also available as `peace-<action>` commands):
-  init, uninstall, enable, disable, status, logs
-  random, next, prev, wallpaper
+Actions:
+  listen SURAH[:AYAH|:START-END|:START-] [--reciter ID] [--follow] [--buffer N]
+  pause, stop, status
+  wallpaper [args...]  Forward arguments to peace-wallpaper
+  init, uninstall, enable, disable, logs, random, next, prev
+  help
 
-Use 'peace <action> --help' or 'peace-<action> --help' for details.
+Run 'peace listen --help' for listening details.
 EOF
 }
 
-if (($# == 0)); then
-  usage
-  exit 0
-fi
-
-ACTION="$1"
-shift
+if (($# == 0)); then usage; exit 0; fi
+ACTION="$1"; shift
 if [[ $ACTION == help || $ACTION == -h || $ACTION == --help ]]; then
-  if (($# == 0)); then
-    usage
-    exit 0
-  fi
-  ACTION="$1"
-  shift
+  if (($# == 0)); then usage; exit 0; fi
+  ACTION="$1"; shift
   set -- --help "$@"
 fi
-
+if [[ $ACTION == wallpaper ]]; then exec "$SCRIPT_DIR/peace-wallpaper" "$@"; fi
+if [[ $ACTION == __follow ]]; then exec "$SCRIPT_DIR/peace-listen" __follow "$@"; fi
+if [[ $ACTION == listen || $ACTION == pause || $ACTION == stop || $ACTION == status ]]; then
+  COMMAND="$SCRIPT_DIR/peace-$ACTION"
+  if [[ -x $COMMAND ]]; then exec "$COMMAND" "$@"; fi
+  exec "$SCRIPT_DIR/peace-listen" "$@"
+fi
 COMMAND="$SCRIPT_DIR/peace-$ACTION"
 if [[ ! -x $COMMAND ]]; then
   echo "peace: unknown action '$ACTION'" >&2

@@ -73,6 +73,15 @@ if [[ -n $REF_OVERRIDE ]]; then
   ACTION="ref"
 fi
 
+FOLLOWING_FILE="$HOME/.local/state/peace/following"
+if [[ -z $OUTPUT_FILE && -z $REF_OVERRIDE && -r $FOLLOWING_FILE ]]; then
+  FOLLOW_PID="$(<"$FOLLOWING_FILE")"
+  if [[ $FOLLOW_PID =~ ^[0-9]+$ ]] && kill -0 "$FOLLOW_PID" 2>/dev/null; then
+    echo "peace-wallpaper: follow session active; skipping scheduled wallpaper change" >&2
+    exit 0
+  fi
+fi
+
 CURATED_AYAHS=()
 if [[ $POOL == curated ]]; then
   if [[ -r $AYAH_FILE ]]; then
@@ -462,7 +471,7 @@ if [[ -n $OUTPUT_FILE ]]; then
     "$AYAH_REF" "$OUT" "$AR_SIZE" "$EN_SIZE" "$REF_SIZE"
 else
   # Keep only the newest $KEEP wallpapers
-  ls -t "$BG_DIR"/peace-*.png 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
+  find "$BG_DIR" -maxdepth 1 -type f -name 'peace-*.png' -printf '%T@ %p\0' | sort -z -nr | tail -z -n +$((KEEP + 1)) | while IFS= read -r -d '' entry; do rm -f -- "${entry#* }"; done
 
   omarchy theme bg set "$OUT"
   mkdir -p "$(dirname "$AYAH_STATE")"
