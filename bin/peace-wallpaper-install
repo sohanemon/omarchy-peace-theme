@@ -55,6 +55,7 @@ install -m 644 "$THEME_DIR/fonts/OFL-Amiri.txt" "$HOME/.local/share/fonts/peace/
 fc-cache -f "$HOME/.local/share/fonts/peace"
 
 ln -sf "$THEME_DIR/bin/peace-wallpaper" "$HOME/.local/bin/peace-wallpaper"
+ln -sf "$THEME_DIR/bin/peace" "$HOME/.local/bin/peace"
 ln -sf "$THEME_DIR/systemd/peace-wallpaper.service" "$UNIT_DIR/peace-wallpaper.service"
 ln -sf "$THEME_DIR/systemd/peace-wallpaper.timer" "$UNIT_DIR/peace-wallpaper.timer"
 
