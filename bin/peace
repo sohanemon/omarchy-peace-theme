@@ -2,79 +2,17 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-WALLPAPER="$SCRIPT_DIR/peace-wallpaper"
-INSTALLER="$SCRIPT_DIR/peace-wallpaper-install"
 
 usage() {
   cat <<'EOF'
 Usage: peace <action> [options]
 
-Theme actions:
-  init                 Install the wallpaper command and enable rotation
-  uninstall            Remove Peace; switch to another theme first
-  enable               Enable and start the wallpaper timer
-  disable              Stop and disable the wallpaper timer
-  status               Show wallpaper timer and service status
-  logs                 Show recent wallpaper service logs
+Actions (also available as `peace-<action>` commands):
+  init, uninstall, enable, disable, status, logs
+  random, next, prev, wallpaper
 
-Wallpaper actions:
-  random [options]     Set a random ayah wallpaper
-  next [options]       Set the next ayah wallpaper
-  prev [options]       Set the previous ayah wallpaper
-  wallpaper [options] Pass options directly to peace-wallpaper
-
-Wallpaper options include --pool all|curated, --ref SURAH:AYAH, --out FILE,
---force, and --debug. Use 'peace <action> --help' for action help.
+Use 'peace <action> --help' or 'peace-<action> --help' for details.
 EOF
-}
-
-action_help() {
-  case "$1" in
-    init|install)
-      echo "Usage: peace init"
-      echo "Check dependencies, install the bundled font and user units, and enable wallpaper rotation."
-      ;;
-    uninstall|remove)
-      echo "Usage: peace uninstall"
-      echo "Remove Peace's timer, commands, bundled font, and installed Omarchy theme."
-      echo "Switch to another Omarchy theme before uninstalling Peace."
-      ;;
-    enable)
-      echo "Usage: peace enable"
-      echo "Enable and start the Peace wallpaper timer."
-      ;;
-    disable)
-      echo "Usage: peace disable"
-      echo "Stop and disable the Peace wallpaper timer."
-      ;;
-    status)
-      echo "Usage: peace status"
-      echo "Show the Peace wallpaper timer and service status."
-      ;;
-    logs)
-      echo "Usage: peace logs"
-      echo "Show the 50 most recent Peace wallpaper service log entries."
-      ;;
-    random|next|prev)
-      echo "Usage: peace $1 [--pool all|curated] [--ref SURAH:AYAH] [--force] [--debug]"
-      echo "Run 'peace wallpaper --help' for all renderer options."
-      ;;
-    wallpaper)
-      "$WALLPAPER" --help
-      ;;
-    *)
-      echo "peace: no help available for '$1'" >&2
-      return 2
-      ;;
-  esac
-}
-
-require_no_extra_args() {
-  if (($#)); then
-    echo "peace: '$ACTION' does not accept extra arguments" >&2
-    echo "Run 'peace $ACTION --help' for usage." >&2
-    exit 2
-  fi
 }
 
 if (($# == 0)); then
@@ -84,106 +22,20 @@ fi
 
 ACTION="$1"
 shift
-
-if [[ $ACTION == -h || $ACTION == --help || $ACTION == help ]]; then
+if [[ $ACTION == help || $ACTION == -h || $ACTION == --help ]]; then
   if (($# == 0)); then
     usage
-  else
-    action_help "$1"
+    exit 0
   fi
-  exit $?
+  ACTION="$1"
+  shift
+  set -- --help "$@"
 fi
 
-if (($#)) && [[ $1 == -h || $1 == --help ]]; then
-  action_help "$ACTION"
-  exit $?
+COMMAND="$SCRIPT_DIR/peace-$ACTION"
+if [[ ! -x $COMMAND ]]; then
+  echo "peace: unknown action '$ACTION'" >&2
+  usage >&2
+  exit 2
 fi
-
-case "$ACTION" in
-  init|install)
-    require_no_extra_args "$@"
-    exec "$INSTALLER"
-    ;;
-  uninstall|remove)
-    require_no_extra_args "$@"
-    ACTIVE_THEME_FILE="$HOME/.local/state/omarchy/current/theme.name"
-    if [[ ! -r $ACTIVE_THEME_FILE ]]; then
-      echo "peace: cannot verify the active Omarchy theme; switch to another theme, then retry" >&2
-      exit 1
-    fi
-    ACTIVE_THEME="$(<"$ACTIVE_THEME_FILE")"
-    if [[ ${ACTIVE_THEME,,} == peace ]]; then
-      echo "peace: Peace is active; run 'omarchy theme set <another-theme>' before uninstalling" >&2
-      exit 1
-    fi
-    if ! systemctl --user show-environment >/dev/null 2>&1; then
-      echo "peace: systemctl --user is unavailable; cannot safely stop the wallpaper timer" >&2
-      exit 1
-    fi
-
-    SYSTEMD_DIR="$HOME/.config/systemd/user"
-    LOCAL_BIN="$HOME/.local/bin"
-    FONT_DIR="$HOME/.local/share/fonts/peace"
-    THEME_INSTALL_DIR="$HOME/.config/omarchy/themes/peace"
-    if [[ -d $THEME_INSTALL_DIR ]] && ! command -v omarchy >/dev/null 2>&1; then
-      echo "peace: omarchy is unavailable; cannot safely remove the installed theme" >&2
-      exit 1
-    fi
-    if [[ -e $SYSTEMD_DIR/peace-wallpaper.timer || -L $SYSTEMD_DIR/peace-wallpaper.timer ]]; then
-      systemctl --user disable --now peace-wallpaper.timer
-    fi
-    if [[ -e $SYSTEMD_DIR/peace-wallpaper.service || -L $SYSTEMD_DIR/peace-wallpaper.service ]]; then
-      systemctl --user stop peace-wallpaper.service || true
-    fi
-
-    remove_managed_link() {
-      local link_path="$1" expected_target="$2" resolved_target
-      [[ -L $link_path ]] || return 0
-      resolved_target="$(readlink -f "$link_path" 2>/dev/null || true)"
-      if [[ $resolved_target == "$expected_target" ]]; then
-        rm -f -- "$link_path"
-      fi
-    }
-    remove_managed_link "$LOCAL_BIN/peace" "$SCRIPT_DIR/peace"
-    remove_managed_link "$LOCAL_BIN/peace-wallpaper" "$WALLPAPER"
-    remove_managed_link "$SYSTEMD_DIR/peace-wallpaper.service" "$(readlink -f "$SCRIPT_DIR/../systemd/peace-wallpaper.service")"
-    remove_managed_link "$SYSTEMD_DIR/peace-wallpaper.timer" "$(readlink -f "$SCRIPT_DIR/../systemd/peace-wallpaper.timer")"
-
-    rm -f -- "$FONT_DIR/Amiri-Regular.ttf" "$FONT_DIR/OFL-Amiri.txt"
-    rmdir "$FONT_DIR" 2>/dev/null || true
-    fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
-    systemctl --user daemon-reload
-    if [[ -d $THEME_INSTALL_DIR ]]; then
-      omarchy theme remove peace
-    fi
-    echo "peace: uninstalled; personal backgrounds were left untouched"
-    ;;
-  enable)
-    require_no_extra_args "$@"
-    systemctl --user enable --now peace-wallpaper.timer
-    ;;
-  disable)
-    require_no_extra_args "$@"
-    systemctl --user disable --now peace-wallpaper.timer
-    systemctl --user stop peace-wallpaper.service || true
-    ;;
-  status)
-    require_no_extra_args "$@"
-    systemctl --user status --no-pager peace-wallpaper.timer peace-wallpaper.service
-    ;;
-  logs)
-    require_no_extra_args "$@"
-    journalctl --user -u peace-wallpaper.service -n 50 --no-pager
-    ;;
-  random|next|prev)
-    exec "$WALLPAPER" "$ACTION" "$@"
-    ;;
-  wallpaper)
-    exec "$WALLPAPER" "$@"
-    ;;
-  *)
-    echo "peace: unknown action '$ACTION'" >&2
-    usage >&2
-    exit 2
-    ;;
-esac
+exec "$COMMAND" "$@"

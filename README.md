@@ -29,6 +29,8 @@ peace prev
 
 Run `peace --help` to see all commands. `peace wallpaper --help` shows renderer options such as `--pool`, `--ref`, and `--out`. Use `peace status` and `peace logs` to inspect rotation, or `peace enable` and `peace disable` to control its timer.
 
+Each action is also available as a standalone command: `peace-random`, `peace-next`, `peace-prev`, `peace-wallpaper`, `peace-init`, `peace-uninstall`, `peace-status`, `peace-logs`, `peace-enable`, and `peace-disable`. Each standalone command has its own `--help` output.
+
 To use `Super + Alt + P` and `Super + Alt + N` in Hyprland, add an optional user binding file at `~/.config/hypr/bindings/peace-wallpaper.lua`:
 
 ```lua

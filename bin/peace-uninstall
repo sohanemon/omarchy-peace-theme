@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+
+if [[ ${1-} == -h || ${1-} == --help ]]; then
+  cat <<'EOF'
+Usage: peace-uninstall
+
+Switch to another Omarchy theme first. This disables wallpaper rotation,
+removes the installed Peace commands and bundled font, and removes the Peace
+theme through Omarchy. Personal backgrounds are preserved.
+EOF
+  exit 0
+fi
+
+if (($#)); then
+  echo "peace-uninstall: unexpected argument '$1'" >&2
+  echo "Usage: peace-uninstall" >&2
+  exit 2
+fi
+
+ACTIVE_THEME_FILE="$HOME/.local/state/omarchy/current/theme.name"
+if [[ ! -r $ACTIVE_THEME_FILE ]]; then
+  echo "peace-uninstall: cannot verify the active Omarchy theme; switch to another theme, then retry" >&2
+  exit 1
+fi
+ACTIVE_THEME="$(<"$ACTIVE_THEME_FILE")"
+if [[ ${ACTIVE_THEME,,} == peace ]]; then
+  echo "peace-uninstall: Peace is active; run 'omarchy theme set <another-theme>' before uninstalling" >&2
+  exit 1
+fi
+if ! systemctl --user show-environment >/dev/null 2>&1; then
+  echo "peace-uninstall: systemctl --user is unavailable; cannot safely stop the wallpaper timer" >&2
+  exit 1
+fi
+
+SYSTEMD_DIR="$HOME/.config/systemd/user"
+LOCAL_BIN="$HOME/.local/bin"
+FONT_DIR="$HOME/.local/share/fonts/peace"
+THEME_INSTALL_DIR="$HOME/.config/omarchy/themes/peace"
+if [[ -d $THEME_INSTALL_DIR ]] && ! command -v omarchy >/dev/null 2>&1; then
+  echo "peace-uninstall: omarchy is unavailable; cannot safely remove the installed theme" >&2
+  exit 1
+fi
+if [[ -e $SYSTEMD_DIR/peace-wallpaper.timer || -L $SYSTEMD_DIR/peace-wallpaper.timer ]]; then
+  systemctl --user disable --now peace-wallpaper.timer
+fi
+if [[ -e $SYSTEMD_DIR/peace-wallpaper.service || -L $SYSTEMD_DIR/peace-wallpaper.service ]]; then
+  systemctl --user stop peace-wallpaper.service || true
+fi
+
+remove_managed_link() {
+  local link_path="$1" expected_target="$2" resolved_target
+  [[ -L $link_path ]] || return 0
+  resolved_target="$(readlink -f "$link_path" 2>/dev/null || true)"
+  if [[ $resolved_target == "$expected_target" ]]; then
+    rm -f -- "$link_path"
+  fi
+}
+
+for command_path in "$SCRIPT_DIR/peace" "$SCRIPT_DIR"/peace-*; do
+  [[ -x $command_path ]] || continue
+  remove_managed_link "$LOCAL_BIN/${command_path##*/}" "$(readlink -f "$command_path")"
+done
+remove_managed_link "$SYSTEMD_DIR/peace-wallpaper.service" "$(readlink -f "$SCRIPT_DIR/../systemd/peace-wallpaper.service")"
+remove_managed_link "$SYSTEMD_DIR/peace-wallpaper.timer" "$(readlink -f "$SCRIPT_DIR/../systemd/peace-wallpaper.timer")"
+
+rm -f -- "$FONT_DIR/Amiri-Regular.ttf" "$FONT_DIR/OFL-Amiri.txt"
+rmdir "$FONT_DIR" 2>/dev/null || true
+fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
+systemctl --user daemon-reload
+if [[ -d $THEME_INSTALL_DIR ]]; then
+  omarchy theme remove peace
+fi
+echo "peace-uninstall: removed Peace; personal backgrounds were left untouched"

@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
-# Install the peace-wallpaper systemd user units.
 set -euo pipefail
+
+if [[ ${1-} == -h || ${1-} == --help ]]; then
+  cat <<'EOF'
+Usage: peace-init
+
+Check requirements, install the bundled Amiri font and wallpaper units, enable
+the timer, and render the initial random ayah wallpaper.
+EOF
+  exit 0
+fi
+
+if (($#)); then
+  echo "peace-init: unexpected argument '$1'" >&2
+  echo "Usage: peace-init" >&2
+  exit 2
+fi
 
 THEME_DIR="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
 UNIT_DIR="$HOME/.config/systemd/user"
@@ -54,8 +69,10 @@ install -m 644 "$THEME_DIR/fonts/Amiri-Regular.ttf" "$HOME/.local/share/fonts/pe
 install -m 644 "$THEME_DIR/fonts/OFL-Amiri.txt" "$HOME/.local/share/fonts/peace/OFL-Amiri.txt"
 fc-cache -f "$HOME/.local/share/fonts/peace"
 
-ln -sf "$THEME_DIR/bin/peace-wallpaper" "$HOME/.local/bin/peace-wallpaper"
-ln -sf "$THEME_DIR/bin/peace" "$HOME/.local/bin/peace"
+for command_path in "$THEME_DIR/bin/peace" "$THEME_DIR"/bin/peace-*; do
+  [[ -x $command_path ]] || continue
+  ln -sf "$command_path" "$HOME/.local/bin/${command_path##*/}"
+done
 ln -sf "$THEME_DIR/systemd/peace-wallpaper.service" "$UNIT_DIR/peace-wallpaper.service"
 ln -sf "$THEME_DIR/systemd/peace-wallpaper.timer" "$UNIT_DIR/peace-wallpaper.timer"
 
@@ -63,4 +80,4 @@ systemctl --user daemon-reload
 systemctl --user enable --now peace-wallpaper.timer
 "$HOME/.local/bin/peace-wallpaper" random
 
-echo "peace-wallpaper timer installed. Check with: systemctl --user list-timers"
+echo "peace initialized. Check the timer with: peace status"

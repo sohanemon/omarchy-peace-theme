@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COMMAND="${0##*/}"
+ACTION="${COMMAND#peace-}"
+LIB_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+WALLPAPER="$(dirname "$LIB_DIR")/bin/peace-wallpaper"
+
+usage() {
+  case "$ACTION" in
+    enable) echo "Usage: $COMMAND"; echo "Enable and start the Peace wallpaper timer." ;;
+    disable) echo "Usage: $COMMAND"; echo "Stop and disable the Peace wallpaper timer." ;;
+    status) echo "Usage: $COMMAND"; echo "Show the Peace wallpaper timer and service status." ;;
+    logs) echo "Usage: $COMMAND"; echo "Show the 50 most recent Peace wallpaper service log entries." ;;
+    random|next|prev)
+      echo "Usage: $COMMAND [--force] [--debug] [--pool all|curated] [--ref SURAH:AYAH] [--out FILE]"
+      ;;
+    *) echo "$COMMAND: unknown action" >&2; return 2 ;;
+  esac
+}
+
+if [[ ${1-} == -h || ${1-} == --help ]]; then
+  usage
+  exit $?
+fi
+
+case "$ACTION" in
+  random|next|prev)
+    exec "$WALLPAPER" "$ACTION" "$@"
+    ;;
+  enable)
+    if (($#)); then echo "$COMMAND: takes no arguments" >&2; exit 2; fi
+    systemctl --user enable --now peace-wallpaper.timer
+    ;;
+  disable)
+    if (($#)); then echo "$COMMAND: takes no arguments" >&2; exit 2; fi
+    systemctl --user disable --now peace-wallpaper.timer
+    systemctl --user stop peace-wallpaper.service || true
+    ;;
+  status)
+    if (($#)); then echo "$COMMAND: takes no arguments" >&2; exit 2; fi
+    systemctl --user status --no-pager peace-wallpaper.timer peace-wallpaper.service
+    ;;
+  logs)
+    if (($#)); then echo "$COMMAND: takes no arguments" >&2; exit 2; fi
+    journalctl --user -u peace-wallpaper.service -n 50 --no-pager
+    ;;
+  *)
+    echo "$COMMAND: unknown action '$ACTION'" >&2
+    exit 2
+    ;;
+esac
