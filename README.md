@@ -5,7 +5,9 @@
 
 ## Backgrounds
 
-Peace rotates the ayah wallpaper periodically: it runs one minute after login, then every three hours and one minute.
+Peace rotates the ayah wallpaper periodically while Peace is the active Omarchy theme: it runs one minute after login, then every three hours and one minute. The installer also generates the first wallpaper immediately. Each refresh needs an internet connection to fetch the verse from [AlQuran Cloud](https://api.alquran.cloud).
+
+The Arabic Uthmani text is served by AlQuran Cloud as `quran-uthmani`; AlQuran Cloud says its text sources include [Tanzil](https://tanzil.net/) and [Quran Academy](https://quranacademy.io/). The English translation is Saheeh International (`en.sahih`), as identified in [AlQuran Cloud's API client documentation](https://alquran.cloud/api-clients).
 
 The theme also includes these static backgrounds:
 
@@ -30,7 +32,7 @@ o.bind("SUPER + ALT + P", "Previous ayah", "peace-wallpaper prev")
 o.bind("SUPER + ALT + N", "Next ayah", "peace-wallpaper next")
 ```
 
-Omarchy loads Lua files from this user bindings directory. It removes Lua files from third-party theme installs for safety, so add these bindings to your own Hyprland config. Run `peace-wallpaper random` once before using next or previous.
+Omarchy loads Lua files from this user bindings directory. It removes Lua files from third-party theme installs for safety, so add these bindings to your own Hyprland config. The installer creates the initial ayah state, after which next and previous are available.
 
 ## Install
 
@@ -41,6 +43,21 @@ omarchy theme install https://github.com/sohanemon/omarchy-peace-theme.git && ba
 ```
 
 Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. The installer checks the required packages, installs the bundled Amiri font, and enables the wallpaper timer.
+
+### Requirements
+
+Local hard requirements checked by the installer:
+
+- `curl` — `omarchy pkg add curl`
+- `jq` — `omarchy pkg add jq`
+- `awk` — `omarchy pkg add gawk`
+- ImageMagick `magick` with the Pango delegate — `omarchy pkg add imagemagick`
+- Fontconfig tools (`fc-cache`, `fc-list`, `fc-match`) — `omarchy pkg add fontconfig`
+- A working `systemctl --user` session
+
+Internet access to `api.alquran.cloud` is required each time an ayah is rendered.
+
+DejaVu Serif and DejaVu Sans are optional font warnings; install them with `omarchy pkg add ttf-dejavu`. Amiri is bundled. The renderer uses the system's Amiri Quran family when present and otherwise falls back to Amiri.
 
 To apply the theme again later, run:
 
@@ -64,7 +81,8 @@ Remove the wallpaper command, user units, and bundled font, then remove the them
 rm -f "$HOME/.local/bin/peace-wallpaper" \
   "$HOME/.config/systemd/user/peace-wallpaper.service" \
   "$HOME/.config/systemd/user/peace-wallpaper.timer" \
-  "$HOME/.local/share/fonts/peace/Amiri-Regular.ttf"
+  "$HOME/.local/share/fonts/peace/"*.ttf \
+  "$HOME/.local/share/fonts/peace/"*.txt
 rmdir "$HOME/.local/share/fonts/peace" 2>/dev/null || true
 fc-cache -f "$HOME/.local/share/fonts"
 systemctl --user daemon-reload
@@ -72,3 +90,7 @@ omarchy theme remove peace
 ```
 
 This leaves `~/.config/omarchy/backgrounds/peace/` intact, so personal backgrounds there are preserved.
+
+## License and text credits
+
+This project's code is MIT licensed; see [LICENSE](LICENSE). The bundled Amiri font is separately licensed under the SIL Open Font License 1.1; its required notice is in [`fonts/OFL-Amiri.txt`](fonts/OFL-Amiri.txt) and is installed alongside the font. Quran text and translation credits are listed above.

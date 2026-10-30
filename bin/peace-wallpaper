@@ -202,6 +202,10 @@ if [[ -n $OUTPUT_FILE && $ACTIVE_THEME != "peace" ]]; then
   echo "peace-wallpaper: --out requires the active Omarchy theme to be 'peace' (current: '$ACTIVE_THEME')" >&2
   exit 1
 fi
+if [[ -z $OUTPUT_FILE && $ACTIVE_THEME != "peace" ]]; then
+  echo "peace-wallpaper: active Omarchy theme is '$ACTIVE_THEME'; skipping wallpaper rotation (switch to peace to resume)" >&2
+  exit 0
+fi
 if [[ -n $OUTPUT_FILE ]]; then
   printf 'Active theme: %s\nColors used: background=%s foreground=%s accent=%s\n' "$ACTIVE_THEME" "$BACKGROUND" "$FOREGROUND" "$ACCENT"
 fi
