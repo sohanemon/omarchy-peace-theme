@@ -199,7 +199,7 @@ if [[ $FOLLOW == true ]]; then
   if [[ $active_theme != peace ]]; then echo "peace listen: warning: active theme is '$active_theme'; playing audio without wallpaper follow" >&2
   elif ! command -v socat >/dev/null 2>&1; then echo 'peace listen: warning: socat is missing; --follow unavailable' >&2
   else
-    setsid "$THEME_DIR/bin/peace" __follow "$BUFFER" </dev/null >/dev/null 2>&1 &
+    setsid "$THEME_DIR/bin/peace-theme" __follow "$BUFFER" </dev/null >/dev/null 2>&1 &
   fi
 fi
 exit 0

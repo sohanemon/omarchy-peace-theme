@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PLUGIN_ID="io.github.sohanemon.omapeace"
+PLUGIN_URL="https://github.com/sohanemon/peace.git"
+PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
+
+if ! command -v omarchy >/dev/null 2>&1; then
+  echo "peace: omarchy is required to install the Omapeace plugin" >&2
+  exit 1
+fi
+
+if [[ -d $PLUGIN_DIR ]]; then
+  omarchy plugin enable "$PLUGIN_ID"
+else
+  omarchy plugin add "$PLUGIN_URL" --enable
+fi

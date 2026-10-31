@@ -1,5 +1,7 @@
 # Peace Omarchy Theme
 
+This repository provides an Omarchy theme centered on Quran ayah wallpapers. It renders Arabic and English ayah text, rotates wallpapers on a timer while the theme is active, and includes static background choices. Use `peace-theme` for this repository's commands. The Omapeace plugin adds audio listening, playback controls, and a top-bar interface through the separate `peace` command.
+
 ![Peace theme preview showing an ayah rendered in Amiri](assets/ayah-1.png)
 ![Neovim](assets/nvim.png)
 
@@ -22,27 +24,27 @@ The theme also includes these static backgrounds:
 Choose a random ayah, or move to the next or previous ayah from a terminal:
 
 ```bash
-peace random
-peace next
-peace prev
+peace-theme random
+peace-theme next
+peace-theme prev
 ```
 
-Run `peace-wallpaper --help` to see renderer options such as `--pool`, `--ref`, and `--out`. Use `peace-logs` to inspect wallpaper rotation, and `peace-enable` or `peace-disable` to control its timer. The `peace` command is provided by the companion Omapeace plugin.
+Run `peace-wallpaper --help` to see renderer options such as `--pool`, `--ref`, and `--out`. Use `peace-logs` to inspect wallpaper rotation, and `peace-enable` or `peace-disable` to control its timer. `peace-theme` is the dispatcher for this repository; `peace` belongs to the Omapeace plugin.
 
 Theme actions are also available as standalone commands: `peace-random`, `peace-next`, `peace-prev`, `peace-wallpaper`, `peace-init`, `peace-uninstall`, `peace-logs`, `peace-enable`, and `peace-disable`. Each standalone command has its own `--help` output.
 
 To use `Super + Alt + P` and `Super + Alt + N` in Hyprland, add an optional user binding file at `~/.config/hypr/bindings/peace-wallpaper.lua`:
 
 ```lua
-o.bind("SUPER + ALT + P", "Previous ayah", "peace prev")
-o.bind("SUPER + ALT + N", "Next ayah", "peace next")
+o.bind("SUPER + ALT + P", "Previous ayah", "peace-theme prev")
+o.bind("SUPER + ALT + N", "Next ayah", "peace-theme next")
 ```
 
 Omarchy loads Lua files from this user bindings directory. It removes Lua files from third-party theme installs for safety, so add these bindings to your own Hyprland config. The installer creates the initial ayah state, after which next and previous are available.
 
 ## Listening with Omapeace
 
-Listening and the top-bar controls are provided by the separate Omapeace plugin. Install and enable that plugin to get the `peace` command and its bar icon. The plugin owns audio playback and wallpaper follow; this repository supplies the wallpaper renderer used by follow mode.
+The theme works on its own for ayah wallpaper rendering, manual random/next/previous controls, and scheduled rotation. Omapeace extends it with audio playback and controls, a top-bar icon, and follow mode that changes the wallpaper to match the ayah being played. The plugin's `peace` command handles listening and playback; follow mode calls this repository's renderer. `peace-theme` remains the command for wallpaper and theme actions. Initialization installs and enables Omapeace so these features are available together.
 
 Play a surah, one ayah, or an ayah range in order:
 
@@ -59,7 +61,7 @@ PEACE_RECITER=ar.alafasy peace listen 1
 peace pause
 peace stop
 peace status
-peace wallpaper next
+peace-theme wallpaper next
 peace help
 ```
 
@@ -73,7 +75,7 @@ Install the theme and wallpaper rotation on a new Omarchy device with one comman
 omarchy theme install https://github.com/sohanemon/omarchy-peace-theme.git && "$HOME/.config/omarchy/themes/peace/bin/peace-init"
 ```
 
-Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks wallpaper requirements, installs the bundled Amiri font and theme commands, then enables the wallpaper timer. Install the Omapeace plugin separately for listening and top-bar controls.
+Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks wallpaper requirements, installs and enables the Omapeace plugin, installs the bundled Amiri font and theme commands, then enables the wallpaper timer. It installs the theme dispatcher as `peace-theme` so the plugin retains the `peace` command.
 
 ### Requirements
 
@@ -103,10 +105,10 @@ Switch to another installed theme before removing Peace, then run the master com
 ```bash
 peace stop
 omarchy theme set "Tokyo Night"
-peace uninstall
+peace-theme uninstall
 ```
 
-`peace uninstall` disables the timer, removes the installed theme commands and bundled font, then removes the theme through Omarchy. It leaves `~/.config/omarchy/backgrounds/peace/` intact, preserving personal backgrounds. Remove the separate plugin with `omarchy plugin remove io.github.sohanemon.omapeace` when you no longer want listening controls.
+`peace-theme uninstall` disables the timer, removes the installed theme commands and bundled font, then removes the theme through Omarchy. It leaves `~/.config/omarchy/backgrounds/peace/` intact, preserving personal backgrounds. Remove the Omapeace plugin separately with `omarchy plugin remove io.github.sohanemon.omapeace` if you no longer want its command or icon.
 
 ## License and text credits
 
