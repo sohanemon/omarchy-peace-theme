@@ -75,7 +75,7 @@ Install the theme and wallpaper rotation on a new Omarchy device with one comman
 omarchy theme install https://github.com/sohanemon/omarchy-peace-theme.git && "$HOME/.config/omarchy/themes/peace/bin/peace-init"
 ```
 
-Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks wallpaper requirements, installs and enables the Omapeace plugin, installs the bundled Amiri font and theme commands, then enables the wallpaper timer. It installs the theme dispatcher as `peace-theme` so the plugin retains the `peace` command.
+Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks wallpaper requirements, installs and enables the Omapeace plugin, installs the bundled Amiri font and theme commands, then enables the wallpaper timer. It installs the theme dispatcher as `peace-theme` so the plugin retains the `peace` command. The initial wallpaper is named `temp_<timestamp>.png`; scheduled and manual renders use `peace-<timestamp>.png`.
 
 ### Requirements
 

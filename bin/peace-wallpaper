@@ -20,10 +20,12 @@ FORCE=false
 DEBUG=false
 REF_OVERRIDE=""
 OUTPUT_FILE=""
+TEMP_OUTPUT=false
 while (($#)); do
   case "$1" in
     --force) FORCE=true; shift ;;
     --debug) DEBUG=true; shift ;;
+    --temp) TEMP_OUTPUT=true; shift ;;
     --pool)
       if (($# < 2)); then
         echo "peace-wallpaper: --pool requires all or curated" >&2
@@ -50,7 +52,7 @@ while (($#)); do
       ;;
     random|next|prev) ACTION="$1"; shift ;;
     -h|--help)
-      echo "Usage: peace-wallpaper [--force] [--debug] [--pool all|curated] [random|next|prev] [--ref SURAH:AYAH] [--out FILE]"
+      echo "Usage: peace-wallpaper [--force] [--debug] [--temp] [--pool all|curated] [random|next|prev] [--ref SURAH:AYAH] [--out FILE]"
       exit 0
       ;;
     *)
@@ -350,7 +352,11 @@ if [[ -n $OUTPUT_FILE ]]; then
   OUT="$OUTPUT_FILE"
   mkdir -p "$(dirname "$OUT")"
 else
-  OUT="$BG_DIR/peace-$STAMP.png"
+  if [[ $TEMP_OUTPUT == true ]]; then
+    OUT="$BG_DIR/temp_$STAMP.png"
+  else
+    OUT="$BG_DIR/peace-$STAMP.png"
+  fi
 fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

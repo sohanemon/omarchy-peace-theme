@@ -84,6 +84,6 @@ ln -sf "$THEME_DIR/systemd/peace-wallpaper.timer" "$UNIT_DIR/peace-wallpaper.tim
 
 systemctl --user daemon-reload
 systemctl --user enable --now peace-wallpaper.timer
-"$HOME/.local/bin/peace-wallpaper" random
+"$HOME/.local/bin/peace-wallpaper" --temp random
 
 echo "peace initialized. Check the timer with: systemctl --user list-timers"
