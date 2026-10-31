@@ -5,8 +5,8 @@ if [[ ${1-} == -h || ${1-} == --help ]]; then
   cat <<'EOF'
 Usage: peace-init
 
-Check requirements, install the bundled Amiri font and wallpaper units, enable
-the timer, and render the initial random ayah wallpaper.
+Check requirements, install Omapeace and theme commands, enable the wallpaper
+timer, and set the initial random ayah wallpaper.
 EOF
   exit 0
 fi
@@ -20,61 +20,16 @@ fi
 THEME_DIR="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
 UNIT_DIR="$HOME/.config/systemd/user"
 
-missing=()
-for dependency in curl jq awk magick fc-cache fc-list fc-match; do
-  if ! command -v "$dependency" >/dev/null 2>&1; then
-    case "$dependency" in
-      awk) package="gawk" ;;
-      fc-cache|fc-list|fc-match) package="fontconfig" ;;
-      *) package="$dependency" ;;
-    esac
-    missing+=("$dependency (install: omarchy pkg add $package)")
-  fi
-done
-
-if command -v magick >/dev/null 2>&1 && ! magick -list format 2>/dev/null | grep -qi pango; then
-  missing+=("ImageMagick Pango delegate (install: omarchy pkg add imagemagick)")
-fi
-
-font_warnings=()
-if ! fc-list 2>/dev/null | grep -qi 'DejaVu Serif'; then
-  font_warnings+=("DejaVu Serif (install: omarchy pkg add ttf-dejavu)")
-fi
-if ! fc-list 2>/dev/null | grep -qi 'DejaVu Sans'; then
-  font_warnings+=("DejaVu Sans (install: omarchy pkg add ttf-dejavu)")
-fi
-
 if ! systemctl --user show-environment >/dev/null 2>&1; then
-  missing+=("systemctl --user (start/enable the user systemd manager for this session)")
-fi
-
-if ((${#missing[@]})); then
-  echo "peace-wallpaper: cannot enable timer; missing hard dependencies:" >&2
-  printf '  - %s\n' "${missing[@]}" >&2
-  if ((${#font_warnings[@]})); then
-    echo "peace-wallpaper: font warnings:" >&2
-    printf '  - %s\n' "${font_warnings[@]}" >&2
-  fi
+  echo "peace-init: systemctl --user is unavailable; start the user systemd manager first" >&2
   exit 1
-fi
-
-if ((${#font_warnings[@]})); then
-  echo "peace-wallpaper: font warnings (rendering may use fallback fonts):" >&2
-  printf '  - %s\n' "${font_warnings[@]}" >&2
 fi
 
 "$THEME_DIR/lib/peace-ensure-plugin"
 
-mkdir -p "$UNIT_DIR" "$HOME/.local/bin" "$HOME/.local/share/fonts/peace"
-rm -f "$HOME/.local/share/fonts/peace/ScheherazadeNew-Regular.ttf"
-install -m 644 "$THEME_DIR/fonts/Amiri-Regular.ttf" "$HOME/.local/share/fonts/peace/Amiri-Regular.ttf"
-install -m 644 "$THEME_DIR/fonts/OFL-Amiri.txt" "$HOME/.local/share/fonts/peace/OFL-Amiri.txt"
-fc-cache -f "$HOME/.local/share/fonts/peace"
+mkdir -p "$UNIT_DIR" "$HOME/.local/bin"
 
 for command_path in "$THEME_DIR"/bin/peace-*; do
-  case ${command_path##*/} in
-    peace-listen|peace-pause|peace-stop|peace-status) continue ;;
-  esac
   [[ -x $command_path ]] || continue
   ln -sf "$command_path" "$HOME/.local/bin/${command_path##*/}"
 done

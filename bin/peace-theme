@@ -8,7 +8,7 @@ usage() {
 Usage: peace-theme <action> [options]
 
 Actions:
-  wallpaper [args...]  Forward arguments to peace-wallpaper
+  wallpaper [random|next|prev]
   init, uninstall, enable, disable, logs, random, next, prev
   help
 EOF
@@ -16,7 +16,6 @@ EOF
 
 if (($# == 0)); then usage; exit 0; fi
 ACTION="$1"; shift
-if [[ $ACTION == __follow ]]; then exec "$SCRIPT_DIR/peace-listen" __follow "$@"; fi
 if [[ $ACTION == help || $ACTION == -h || $ACTION == --help ]]; then
   if (($# == 0)); then usage; exit 0; fi
   ACTION="$1"; shift

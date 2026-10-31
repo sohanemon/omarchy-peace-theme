@@ -1,6 +1,6 @@
 # Peace Omarchy Theme
 
-This repository provides an Omarchy theme centered on Quran ayah wallpapers. It renders Arabic and English ayah text, rotates wallpapers on a timer while the theme is active, and includes static background choices. Use `peace-theme` for this repository's commands. The Omapeace plugin adds audio listening, playback controls, and a top-bar interface through the separate `peace` command.
+This repository provides an Omarchy theme centered on Quran ayah wallpapers. It configures timed wallpaper rotation, theme actions, and static background choices; Omapeace renders the ayah wallpapers. Use `peace-theme` for this repository's commands. The plugin adds audio listening, playback controls, and a top-bar interface through the separate `peace` command.
 
 ![Peace theme preview showing an ayah rendered in Amiri](assets/ayah-1.png)
 ![Neovim](assets/nvim.png)
@@ -9,7 +9,7 @@ This repository provides an Omarchy theme centered on Quran ayah wallpapers. It 
 
 ## Backgrounds
 
-Peace rotates the ayah wallpaper periodically while Peace is the active Omarchy theme: it runs one minute after login, then every three hours and one minute. The installer also generates the first wallpaper immediately. Each refresh needs an internet connection to fetch the verse from [AlQuran Cloud](https://api.alquran.cloud).
+Peace rotates the ayah wallpaper periodically while Peace is the active Omarchy theme: it runs one minute after login, then every three hours and one minute. Rendering and wallpaper changes use the Omapeace plugin's `peace` command; this repository only configures the timer and theme actions. The installer generates the first wallpaper immediately and gives the active copy a `temp_` filename. Each render needs internet access to AlQuran Cloud.
 
 The Arabic Uthmani text is served by AlQuran Cloud as `quran-uthmani`; AlQuran Cloud says its text sources include [Tanzil](https://tanzil.net/) and [Quran Academy](https://quranacademy.io/). The English translation is Saheeh International (`en.sahih`), as identified in [AlQuran Cloud's API client documentation](https://alquran.cloud/api-clients).
 
@@ -29,7 +29,7 @@ peace-theme next
 peace-theme prev
 ```
 
-Run `peace-wallpaper --help` to see renderer options such as `--pool`, `--ref`, and `--out`. Use `peace-logs` to inspect wallpaper rotation, and `peace-enable` or `peace-disable` to control its timer. `peace-theme` is the dispatcher for this repository; `peace` belongs to the Omapeace plugin.
+Use `peace-logs` to inspect wallpaper rotation, and `peace-enable` or `peace-disable` to control its timer. `peace-theme` is the dispatcher for this repository; `peace` belongs to Omapeace and performs rendering, wallpaper selection, listening, and playback controls.
 
 Theme actions are also available as standalone commands: `peace-random`, `peace-next`, `peace-prev`, `peace-wallpaper`, `peace-init`, `peace-uninstall`, `peace-logs`, `peace-enable`, and `peace-disable`. Each standalone command has its own `--help` output.
 
@@ -44,7 +44,7 @@ Omarchy loads Lua files from this user bindings directory. It removes Lua files 
 
 ## Listening with Omapeace
 
-The theme works on its own for ayah wallpaper rendering, manual random/next/previous controls, and scheduled rotation. Omapeace extends it with audio playback and controls, a top-bar icon, and follow mode that changes the wallpaper to match the ayah being played. The plugin's `peace` command handles listening and playback; follow mode calls this repository's renderer. `peace-theme` remains the command for wallpaper and theme actions. Initialization installs and enables Omapeace so these features are available together.
+This repository provides the Omarchy theme, timer, and `peace-theme` command grouping. Omapeace provides the shared `peace` command, which handles ayah rendering and random/next/previous wallpaper changes as well as audio playback, playback controls, the top-bar icon, and follow mode. Follow mode prepares and displays upcoming ayah wallpapers inside the plugin. The theme delegates wallpaper actions to that command instead of carrying a second renderer or playback implementation. Initialization installs and enables Omapeace and installs its `peace` command.
 
 Play a surah, one ayah, or an ayah range in order:
 
@@ -65,7 +65,7 @@ peace-theme wallpaper next
 peace help
 ```
 
-The plugin requires `mpv`, `socat` for pause/status/follow, and internet access to AlQuran Cloud. `--reciter ID` overrides `PEACE_RECITER` (default `ar.alafasy`). With `--follow`, audio waits until the startup wallpaper lead is ready, and upcoming audio and wallpapers are cached for playback. `--buffer N`, `--lead N`, and `--jobs N` control preparation.
+The plugin requires `mpv` and internet access to AlQuran Cloud. `--reciter ID` overrides `PEACE_RECITER` (default `ar.alafasy`). With `--follow`, audio starts while upcoming audio and wallpapers are cached for playback. `--buffer N`, `--lead N`, and `--jobs N` control preparation.
 
 ## Install
 
@@ -75,22 +75,13 @@ Install the theme and wallpaper rotation on a new Omarchy device with one comman
 omarchy theme install https://github.com/sohanemon/omarchy-peace-theme.git && "$HOME/.config/omarchy/themes/peace/bin/peace-init"
 ```
 
-Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks wallpaper requirements, installs and enables the Omapeace plugin, installs the bundled Amiri font and theme commands, then enables the wallpaper timer. It installs the theme dispatcher as `peace-theme` so the plugin retains the `peace` command. The initial wallpaper is named `temp_<timestamp>.png`; scheduled and manual renders use `peace-<timestamp>.png`.
+Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks for a working user systemd session, installs and enables Omapeace, runs the plugin's `peace install` command, links this theme's commands, and enables the wallpaper timer. The initial active wallpaper copy is named `temp_<timestamp>.png`; scheduled and manual wallpaper files are managed by Omapeace.
 
 ### Requirements
 
-Wallpaper timer hard requirements checked by the installer:
+The theme installer requires a working `systemctl --user` session. Omapeace handles rendering dependencies and requires internet access to AlQuran Cloud; audio playback requires `mpv`.
 
-- `curl` — `omarchy pkg add curl`
-- `jq` — `omarchy pkg add jq`
-- `awk` — `omarchy pkg add gawk`
-- ImageMagick `magick` with the Pango delegate — `omarchy pkg add imagemagick`
-- Fontconfig tools (`fc-cache`, `fc-list`, `fc-match`) — `omarchy pkg add fontconfig`
-- A working `systemctl --user` session
-
-Internet access to `api.alquran.cloud` is required each time an ayah is rendered.
-
-DejaVu Serif and DejaVu Sans are optional font warnings; install them with `omarchy pkg add ttf-dejavu`. Amiri is bundled. The renderer uses the system's Amiri Quran family when present and otherwise falls back to Amiri.
+Omapeace bundles its text shaping, fonts, and image rendering in its command, so this theme does not require ImageMagick, Pango, or system font packages for wallpaper generation.
 
 To apply the theme again later, run:
 
@@ -108,8 +99,8 @@ omarchy theme set "Tokyo Night"
 peace-theme uninstall
 ```
 
-`peace-theme uninstall` disables the timer, removes the installed theme commands and bundled font, then removes the theme through Omarchy. It leaves `~/.config/omarchy/backgrounds/peace/` intact, preserving personal backgrounds. Remove the Omapeace plugin separately with `omarchy plugin remove io.github.sohanemon.omapeace` if you no longer want its command or icon.
+`peace-theme uninstall` disables the timer, removes the installed theme commands and any legacy bundled font, then removes the theme through Omarchy. It leaves `~/.config/omarchy/backgrounds/peace/` intact, preserving personal backgrounds. Remove the Omapeace plugin separately with `omarchy plugin remove io.github.sohanemon.omapeace` if you no longer want its command or icon.
 
 ## License and text credits
 
-This project's code is MIT licensed; see [LICENSE](LICENSE). The bundled Amiri font is separately licensed under the SIL Open Font License 1.1; its required notice is in [`fonts/OFL-Amiri.txt`](fonts/OFL-Amiri.txt) and is installed alongside the font. Quran text and translation credits are listed above.
+This project's code is MIT licensed; see [LICENSE](LICENSE). The bundled Amiri font asset is separately licensed under the SIL Open Font License 1.1; its required notice is in [`fonts/OFL-Amiri.txt`](fonts/OFL-Amiri.txt). Quran text and translation credits are listed above.

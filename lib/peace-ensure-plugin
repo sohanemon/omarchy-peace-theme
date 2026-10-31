@@ -15,3 +15,10 @@ if [[ -d $PLUGIN_DIR ]]; then
 else
   omarchy plugin add "$PLUGIN_URL" --enable
 fi
+
+if [[ ! -x $PLUGIN_DIR/bin/peace ]]; then
+  echo "peace: Command is missing from $PLUGIN_DIR/bin/peace" >&2
+  exit 1
+fi
+
+"$PLUGIN_DIR/bin/peace" install

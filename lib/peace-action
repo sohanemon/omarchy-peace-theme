@@ -4,7 +4,6 @@ set -euo pipefail
 COMMAND="${0##*/}"
 ACTION="${COMMAND#peace-}"
 LIB_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-WALLPAPER="$(dirname "$LIB_DIR")/bin/peace-wallpaper"
 
 usage() {
   case "$ACTION" in
@@ -13,7 +12,7 @@ usage() {
     status) echo "Usage: $COMMAND"; echo "Show the Peace wallpaper timer and service status." ;;
     logs) echo "Usage: $COMMAND"; echo "Show the 50 most recent Peace wallpaper service log entries." ;;
     random|next|prev)
-      echo "Usage: $COMMAND [--force] [--debug] [--pool all|curated] [--ref SURAH:AYAH] [--out FILE]"
+      echo "Usage: $COMMAND"
       ;;
     *) echo "$COMMAND: unknown action" >&2; return 2 ;;
   esac
@@ -26,7 +25,8 @@ fi
 
 case "$ACTION" in
   random|next|prev)
-    exec "$WALLPAPER" "$ACTION" "$@"
+    if (($#)); then echo "$COMMAND: takes no arguments" >&2; exit 2; fi
+    exec "$HOME/.local/bin/peace" "$ACTION"
     ;;
   enable)
     if (($#)); then echo "$COMMAND: takes no arguments" >&2; exit 2; fi
