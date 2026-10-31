@@ -8,8 +8,7 @@ usage() {
 Usage: peace-theme <action> [options]
 
 Actions:
-  wallpaper [random|next|prev]
-  init, uninstall, enable, disable, logs, random, next, prev
+  init, uninstall, enable, disable, logs
   help
 EOF
 }
@@ -21,7 +20,6 @@ if [[ $ACTION == help || $ACTION == -h || $ACTION == --help ]]; then
   ACTION="$1"; shift
   set -- --help "$@"
 fi
-if [[ $ACTION == wallpaper ]]; then exec "$SCRIPT_DIR/peace-wallpaper" "$@"; fi
 COMMAND="$SCRIPT_DIR/peace-$ACTION"
 if [[ ! -x $COMMAND ]]; then
   echo "peace-theme: unknown action '$ACTION'" >&2

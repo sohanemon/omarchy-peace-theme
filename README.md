@@ -24,20 +24,20 @@ The theme also includes these static backgrounds:
 Choose a random ayah, or move to the next or previous ayah from a terminal:
 
 ```bash
-peace-theme random
-peace-theme next
-peace-theme prev
+peace random
+peace next
+peace prev
 ```
 
-Use `peace-logs` to inspect wallpaper rotation, and `peace-enable` or `peace-disable` to control its timer. `peace-theme` is the dispatcher for this repository; `peace` belongs to Omapeace and performs rendering, wallpaper selection, listening, and playback controls.
+The Omapeace binary owns wallpaper selection and rendering. This repository provides only theme lifecycle and timer commands through `peace-theme`, `peace-init`, `peace-uninstall`, `peace-enable`, `peace-disable`, and `peace-logs`.
 
-Theme actions are also available as standalone commands: `peace-random`, `peace-next`, `peace-prev`, `peace-wallpaper`, `peace-init`, `peace-uninstall`, `peace-logs`, `peace-enable`, and `peace-disable`. Each standalone command has its own `--help` output.
+Use `peace wallpaper next` for the plugin's grouped wallpaper command. Plugin actions and options are documented by `peace --help` and `peace <command> --help`.
 
 To use `Super + Alt + P` and `Super + Alt + N` in Hyprland, add an optional user binding file at `~/.config/hypr/bindings/peace-wallpaper.lua`:
 
 ```lua
-o.bind("SUPER + ALT + P", "Previous ayah", "peace-theme prev")
-o.bind("SUPER + ALT + N", "Next ayah", "peace-theme next")
+o.bind("SUPER + ALT + P", "Previous ayah", "peace prev")
+o.bind("SUPER + ALT + N", "Next ayah", "peace next")
 ```
 
 Omarchy loads Lua files from this user bindings directory. It removes Lua files from third-party theme installs for safety, so add these bindings to your own Hyprland config. The installer creates the initial ayah state, after which next and previous are available.
@@ -61,7 +61,7 @@ PEACE_RECITER=ar.alafasy peace listen 1
 peace pause
 peace stop
 peace status
-peace-theme wallpaper next
+peace wallpaper next
 peace help
 ```
 
@@ -75,7 +75,7 @@ Install the theme and wallpaper rotation on a new Omarchy device with one comman
 omarchy theme install https://github.com/sohanemon/omarchy-peace-theme.git && "$HOME/.config/omarchy/themes/peace/bin/peace-init"
 ```
 
-Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks for a working user systemd session, installs and enables Omapeace, runs the plugin's `peace install` command, links this theme's commands, and enables the wallpaper timer. The initial active wallpaper copy is named `temp_<timestamp>.png`; scheduled and manual wallpaper files are managed by Omapeace.
+Omarchy installs and activates the theme under `~/.config/omarchy/themes/peace`. `peace-init` checks for a working user systemd session, installs and enables Omapeace, runs the plugin's command installer, links this theme's lifecycle and timer commands, and enables the wallpaper timer. The initial active wallpaper copy is named `temp_<timestamp>.png`; scheduled and manual wallpaper files are managed by Omapeace.
 
 ### Requirements
 
@@ -103,4 +103,4 @@ peace-theme uninstall
 
 ## License and text credits
 
-This project's code is MIT licensed; see [LICENSE](LICENSE). The bundled Amiri font asset is separately licensed under the SIL Open Font License 1.1; its required notice is in [`fonts/OFL-Amiri.txt`](fonts/OFL-Amiri.txt). Quran text and translation credits are listed above.
+This project's code is MIT licensed; see [LICENSE](LICENSE). Quran text and translation credits are listed above.

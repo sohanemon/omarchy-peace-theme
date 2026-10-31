@@ -8,8 +8,8 @@ if [[ ${1-} == -h || ${1-} == --help ]]; then
 Usage: peace-uninstall
 
 Switch to another Omarchy theme first. This disables wallpaper rotation,
-removes the installed Peace commands and bundled font, and removes the Peace
-theme through Omarchy. Personal backgrounds are preserved.
+removes this theme's installed commands, and removes the Peace theme through
+Omarchy. Personal backgrounds are preserved.
 EOF
   exit 0
 fi

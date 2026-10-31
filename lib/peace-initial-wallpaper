@@ -7,7 +7,7 @@ BG_DIR="$HOME/.config/omarchy/backgrounds/peace"
 PLUGIN_BG_DIR="$HOME/.local/share/omapeace/backgrounds"
 LATEST="$(find "$PLUGIN_BG_DIR" -maxdepth 1 -type f -name 'ayah-*.png' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n1 | cut -d' ' -f2-)"
 if [[ -z $LATEST || ! -f $LATEST ]]; then
-  echo "peace-wallpaper: Omapeace did not produce a wallpaper image" >&2
+  echo "peace-init: Omapeace did not produce a wallpaper image" >&2
   exit 1
 fi
 
@@ -15,4 +15,3 @@ mkdir -p "$BG_DIR"
 TEMP_WALLPAPER="$BG_DIR/temp_$(date +%s%N).png"
 cp -- "$LATEST" "$TEMP_WALLPAPER"
 omarchy theme bg set "$TEMP_WALLPAPER"
-echo "peace-wallpaper: set $TEMP_WALLPAPER"

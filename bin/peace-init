@@ -33,12 +33,11 @@ for command_path in "$THEME_DIR"/bin/peace-*; do
   [[ -x $command_path ]] || continue
   ln -sf "$command_path" "$HOME/.local/bin/${command_path##*/}"
 done
-ln -sf "$THEME_DIR/bin/peace-theme" "$HOME/.local/bin/peace-theme"
 ln -sf "$THEME_DIR/systemd/peace-wallpaper.service" "$UNIT_DIR/peace-wallpaper.service"
 ln -sf "$THEME_DIR/systemd/peace-wallpaper.timer" "$UNIT_DIR/peace-wallpaper.timer"
 
 systemctl --user daemon-reload
 systemctl --user enable --now peace-wallpaper.timer
-"$HOME/.local/bin/peace-wallpaper" --temp random
+"$THEME_DIR/lib/peace-initial-wallpaper"
 
 echo "peace initialized. Check the timer with: systemctl --user list-timers"
