@@ -48,20 +48,16 @@ if ((${#font_warnings[@]})); then
   printf '  - %s\n' "${font_warnings[@]}" >&2
 fi
 
-if ! command -v mpv >/dev/null 2>&1; then
-  echo "peace: listening unavailable; install mpv with: omarchy pkg add mpv" >&2
-fi
-if ! command -v socat >/dev/null 2>&1; then
-  echo "peace: warning: socat is missing; pause, status, and --follow are unavailable" >&2
-fi
-
 mkdir -p "$UNIT_DIR" "$HOME/.local/bin" "$HOME/.local/share/fonts/peace"
 rm -f "$HOME/.local/share/fonts/peace/ScheherazadeNew-Regular.ttf"
 install -m 644 "$THEME_DIR/fonts/Amiri-Regular.ttf" "$HOME/.local/share/fonts/peace/Amiri-Regular.ttf"
 install -m 644 "$THEME_DIR/fonts/OFL-Amiri.txt" "$HOME/.local/share/fonts/peace/OFL-Amiri.txt"
 fc-cache -f "$HOME/.local/share/fonts/peace"
 
-for command_path in "$THEME_DIR/bin/peace" "$THEME_DIR"/bin/peace-*; do
+for command_path in "$THEME_DIR"/bin/peace-*; do
+  case ${command_path##*/} in
+    peace-listen|peace-pause|peace-stop|peace-status) continue ;;
+  esac
   [[ -x $command_path ]] || continue
   ln -sf "$command_path" "$HOME/.local/bin/${command_path##*/}"
 done

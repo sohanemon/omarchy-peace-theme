@@ -69,7 +69,10 @@ install -m 644 "$THEME_DIR/fonts/Amiri-Regular.ttf" "$HOME/.local/share/fonts/pe
 install -m 644 "$THEME_DIR/fonts/OFL-Amiri.txt" "$HOME/.local/share/fonts/peace/OFL-Amiri.txt"
 fc-cache -f "$HOME/.local/share/fonts/peace"
 
-for command_path in "$THEME_DIR/bin/peace" "$THEME_DIR"/bin/peace-*; do
+for command_path in "$THEME_DIR"/bin/peace-*; do
+  case ${command_path##*/} in
+    peace-listen|peace-pause|peace-stop|peace-status) continue ;;
+  esac
   [[ -x $command_path ]] || continue
   ln -sf "$command_path" "$HOME/.local/bin/${command_path##*/}"
 done
@@ -80,4 +83,4 @@ systemctl --user daemon-reload
 systemctl --user enable --now peace-wallpaper.timer
 "$HOME/.local/bin/peace-wallpaper" random
 
-echo "peace initialized. Check the timer with: peace status"
+echo "peace initialized. Check the timer with: systemctl --user list-timers"

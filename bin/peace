@@ -8,13 +8,11 @@ usage() {
 Usage: peace <action> [options]
 
 Actions:
-  listen SURAH[:AYAH|:START-END|:START-] [--reciter ID] [--follow] [--buffer N]
-  pause, stop, status
   wallpaper [args...]  Forward arguments to peace-wallpaper
   init, uninstall, enable, disable, logs, random, next, prev
   help
 
-Run 'peace listen --help' for listening details.
+Listening controls are provided by the Omapeace plugin.
 EOF
 }
 
@@ -26,12 +24,6 @@ if [[ $ACTION == help || $ACTION == -h || $ACTION == --help ]]; then
   set -- --help "$@"
 fi
 if [[ $ACTION == wallpaper ]]; then exec "$SCRIPT_DIR/peace-wallpaper" "$@"; fi
-if [[ $ACTION == __follow ]]; then exec "$SCRIPT_DIR/peace-listen" __follow "$@"; fi
-if [[ $ACTION == listen || $ACTION == pause || $ACTION == stop || $ACTION == status ]]; then
-  COMMAND="$SCRIPT_DIR/peace-$ACTION"
-  if [[ -x $COMMAND ]]; then exec "$COMMAND" "$@"; fi
-  exec "$SCRIPT_DIR/peace-listen" "$@"
-fi
 COMMAND="$SCRIPT_DIR/peace-$ACTION"
 if [[ ! -x $COMMAND ]]; then
   echo "peace: unknown action '$ACTION'" >&2
